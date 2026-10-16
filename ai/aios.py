@@ -176,13 +176,25 @@ class Session:
 
     def registry(self, args: dict[str, Any]) -> dict[str, Any]:
         if args["op"] not in {"install", "remove", "query"}: raise ValueError("invalid registry op")
+        if self.tool_count > 5: raise PermissionError("registry operation budget exceeded for this session")
         path = AI_ROOT / "state" / "registry.json"; current = json.loads(path.read_text()) if path.exists() else {}
         name = args["name"]
         if args["op"] == "query": return {"app": current.get(name)}
         if args["op"] == "remove": current.pop(name, None)
         else:
-            if self.tool_count > 0 and not args.get("manifest"): raise ValueError("install requires a manifest")
-            manifest = args["manifest"]; manifest["tests_pass"] = bool(manifest.get("tests_pass")); current[name] = manifest
+            manifest = args.get("manifest")
+            if not isinstance(manifest, dict): raise ValueError("install requires a manifest")
+            required = {"name", "version", "entry", "tests", "tests_pass"}
+            missing = sorted(required - manifest.keys())
+            if missing: raise ValueError("manifest missing: " + ", ".join(missing))
+            if manifest["name"] != name: raise ValueError("manifest name does not match registry name")
+            if not manifest["tests_pass"]: raise ValueError("manifest tests_pass must be true")
+            for key in ("entry", "tests"):
+                value = manifest[key]
+                if not isinstance(value, str) or not value.startswith("/ai/") or "/secrets" in value:
+                    raise ValueError(f"manifest {key} must stay inside /ai")
+            if not re.fullmatch(r"[A-Za-z0-9_.-]+", name): raise ValueError("unsafe app name")
+            current[name] = dict(manifest)
         path.parent.mkdir(parents=True, exist_ok=True); path.write_text(json.dumps(current, indent=2, sort_keys=True) + "\n"); return {"registry": current}
 
     def checkpoint(self, args: dict[str, Any]) -> dict[str, Any]:

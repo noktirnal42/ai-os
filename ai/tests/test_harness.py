@@ -47,10 +47,16 @@ class HarnessTests(unittest.TestCase):
         self.assertEqual((self.root / "apps" / "marker").read_text(), "before")
 
     def test_registry_manifest_and_audit(self):
-        s = self.session(); result = s.call_tool("registry", {"op": "install", "name": "hello", "manifest": {"version": "0.1", "tests_pass": True}})
+        s = self.session(); result = s.call_tool("registry", {"op": "install", "name": "hello", "manifest": {"name": "hello", "version": "0.1", "entry": "/ai/bin/hello", "tests": "/ai/apps/hello/tests/run.sh", "tests_pass": True}})
         self.assertTrue(result["registry"]["hello"]["tests_pass"])
         rows = [json.loads(line) for line in s.log.path.read_text().splitlines()]
         self.assertTrue(any(row["ev"] == "tool_result" for row in rows))
+
+    def test_registry_rejects_incomplete_or_unsafe_manifest(self):
+        s = self.session()
+        self.assertIn("error", s.call_tool("registry", {"op": "install", "name": "bad", "manifest": {"version": "0.1"}}))
+        unsafe = {"name": "bad", "version": "0.1", "entry": "/etc/thing", "tests": "/ai/apps/bad/tests/run.sh", "tests_pass": True}
+        self.assertIn("error", s.call_tool("registry", {"op": "install", "name": "bad", "manifest": unsafe}))
 
     def test_model_tool_call_executes_and_then_verdicts(self):
         root = self.root
