@@ -135,6 +135,16 @@ class Session:
 
     def call_tool(self, name: str, args: dict[str, Any]) -> dict[str, Any]:
         self.tool_count += 1
+        if name == "shell" and isinstance(args, dict) and isinstance(args.get("cmd"), dict):
+            nested = args["cmd"]
+            if (
+                set(nested).issubset({"cmd", "timeout_s", "workdir"})
+                and isinstance(nested.get("cmd"), str)
+                and ("timeout_s" not in nested or isinstance(nested["timeout_s"], int))
+                and ("workdir" not in nested or isinstance(nested["workdir"], str))
+            ):
+                args = {**args, **nested, "cmd": nested["cmd"]}
+                self.log.emit("tool_args_normalized", tool=name, shape="nested-shell-command")
         self.log.emit("tool_call", tool=name, args=args, hash=digest(args))
         signature = digest({"tool": name, "args": args})
         self.tool_signatures[signature] = self.tool_signatures.get(signature, 0) + 1

@@ -1,4 +1,4 @@
-.PHONY: selftest test calc-test fileutils-test jobs-test aed-test ask-test net-test eval sandbox-probes live-model-test live-self-build-test net-probe
+.PHONY: selftest test calc-test fileutils-test jobs-test aed-test ask-test net-test eval sandbox-probes live-model-test live-self-build-test live-app-build-test net-probe
 
 selftest:
 	./selftest
@@ -35,6 +35,9 @@ live-model-test:
 
 live-self-build-test:
 	python3 evals/live-self-build.py
+
+live-app-build-test:
+	python3 evals/live-app-build.py
 
 net-probe:
 	python3 evals/net-probe.py

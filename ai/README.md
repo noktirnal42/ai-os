@@ -49,6 +49,15 @@ acceptance checks, and appends its evidence to `/ai/state/evals/live-self-build.
 The runner requires AI OS itself to execute its acceptance command; an early
 final response is nudged to continue, and the harness only records verified
 success after the compiler and acceptance commands both exit zero.
+For a task with independent hidden cases, run
+`make -C ai live-app-build-test` in the guest with the same model environment.
+It asks AI OS to build a line-count utility from a short specification and tests
+empty input, blank lines, missing final newlines, larger input, and long lines;
+run evidence is written to `/ai/state/evals/live-app-build.jsonl`.
+To independently rescore an existing generated app after an AI OS repair pass,
+run `python3 ai/evals/live-app-build.py --score-existing <app-name>` in the guest;
+the scorer combines matching session evidence with fresh hidden and negative
+acceptance tests.
 
 The first Phase 1 application is `apps/calc`. Its acceptance command is
 `/ai/apps/calc/tests/run.sh`; a successful build installs `/ai/bin/calc` and

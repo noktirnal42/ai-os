@@ -24,9 +24,10 @@ per task. Run: `evals/run.sh --phase 1 [--model qwen7b] [--seed N] [--repeat 3]`
   not memorization.
 - E1-3: inject a deliberately buggy spec line ("division is left-assoc") → eval
   checks the agent notices contradiction and asks.
-- E1-4: build a-new app not in any doc (e.g. `rev` — reverses input lines) in one
-  session from a short brief; acceptance = passes hidden test suite the eval
-  supplies.
+- E1-4: build a new app not in any doc from a short brief; acceptance = passes
+  hidden test suite the eval supplies. The current live guest fixture builds a
+  streaming line counter and checks empty input, blank lines, unterminated final
+  lines, 512-line input, and a 64 KiB line.
 - E1-5: repair task: a broken calc source is planted; agent must fix to green.
 
 **Phase 2 battery:** E2-1 (loopback net config against a dummy iface + local DHCP
