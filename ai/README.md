@@ -46,6 +46,9 @@ For a repeatable model-driven build check without an install prompt, set
 the Alpine guest. It creates a uniquely named demo app, validates generated
 source and manifest against the task contract, runs positive and negative
 acceptance checks, and appends its evidence to `/ai/state/evals/live-self-build.jsonl`.
+The runner requires AI OS itself to execute its acceptance command; an early
+final response is nudged to continue, and the harness only records verified
+success after the compiler and acceptance commands both exit zero.
 
 The first Phase 1 application is `apps/calc`. Its acceptance command is
 `/ai/apps/calc/tests/run.sh`; a successful build installs `/ai/bin/calc` and
