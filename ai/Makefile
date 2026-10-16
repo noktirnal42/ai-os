@@ -1,4 +1,4 @@
-.PHONY: test calc-test fileutils-test jobs-test aed-test ask-test eval sandbox-probes live-model-test net-probe
+.PHONY: test calc-test fileutils-test jobs-test aed-test ask-test net-test eval sandbox-probes live-model-test net-probe
 
 test:
 	python3 -m unittest discover -s tests -v
@@ -17,6 +17,9 @@ aed-test:
 
 ask-test:
 	./apps/ask/tests/run.sh
+
+net-test:
+	./apps/net/tests/run.sh
 
 eval:
 	./evals/run.sh --phase 1 --repeat 1
