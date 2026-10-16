@@ -1,4 +1,4 @@
-.PHONY: test calc-test fileutils-test jobs-test aed-test ask-test eval sandbox-probes
+.PHONY: test calc-test fileutils-test jobs-test aed-test ask-test eval sandbox-probes live-model-test
 
 test:
 	python3 -m unittest discover -s tests -v
@@ -23,3 +23,6 @@ eval:
 
 sandbox-probes:
 	AIOS_ROOT=$${AIOS_ROOT:-/tmp/aios-probes} python3 evals/sandbox-probes.py
+
+live-model-test:
+	./evals/live-model.sh

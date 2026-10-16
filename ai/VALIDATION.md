@@ -27,6 +27,8 @@ Guest evidence:
 * The same live model generated a JSON tool call which the harness parsed and
   executed. `/ai/tmp/live-model-two.txt` contained `LIVE_TWO_TOOL_OK`, and the
   session JSONL recorded successful `fs_write` and `shell` tool results.
+* `evals/live-model.sh` now packages those two checks as a repeatable guest
+  smoke test using explicit `AIOS_MODEL_URL` and `AIOS_MODEL` overrides.
 * `evals/run.sh --phase 1 --repeat 2` passed all six Phase 1 tasks twice and
   appended the results to `/ai/state/evals.csv`.
 * `evals/sandbox-probes.py` passed secret, protected-path, network, and shadow-file
