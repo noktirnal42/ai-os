@@ -13,7 +13,7 @@ jobs:
         with:
           python-version: '3.x'
       - name: Run harness and app checks
-        run: make -C ai test calc-test fileutils-test jobs-test aed-test ask-test
+        run: make -C ai selftest
       - name: Run deterministic evals
         run: |
           AIOS_ROOT="$RUNNER_TEMP/aios-evals" make -C ai eval

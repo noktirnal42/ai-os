@@ -1,4 +1,7 @@
-.PHONY: test calc-test fileutils-test jobs-test aed-test ask-test net-test eval sandbox-probes live-model-test net-probe
+.PHONY: selftest test calc-test fileutils-test jobs-test aed-test ask-test net-test eval sandbox-probes live-model-test net-probe
+
+selftest:
+	./selftest
 
 test:
 	python3 -m unittest discover -s tests -v

@@ -5,7 +5,7 @@ emulator. This is a Python reference harness plus the first Phase 1 utilities.
 
 Guest evidence:
 
-* `make test`: 5 harness tests passed.
+* `make test`: 7 harness tests passed.
 * `make calc-test`: calculator acceptance passed with `ALL PASS` under Alpine GCC.
 * `calc "2^10"`: printed `1024`.
 * `make fileutils-test`: file utilities acceptance passed with `FILEUTILS ALL PASS`.
@@ -26,8 +26,13 @@ Guest evidence:
   version, interface/route observations, and `emulated: true`; it performs no
   interface mutation or external fetch.
 * `apps/net/tests/run.sh` passes the operator network gate and host allowlist
-  checks, then verifies a bounded local HTTP fetch; denied requests remain
-  denied when either control is absent.
+  checks, then verifies bounded local HTTP fetch, DNS resolution, HTTP HEAD
+  status, and rejection of redirects to hosts outside the allowlist; denied
+  requests remain denied when either control is absent.
+* `make selftest` runs the full harness, app, and network observation acceptance
+  suite. On hosts
+  without Linux `ip`, it marks the guest-only interface probe as skipped; the
+  Alpine guest runs it and verifies two interfaces and two routes.
 * The harness fake-model test drove a real `fs_write` tool call, verified the file
   mutation, then completed the session with an assistant message.
 * Live inference through the host Ollama OpenAI-compatible endpoint succeeded:
