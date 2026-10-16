@@ -1,0 +1,8 @@
+{
+  "name": "fileutils",
+  "version": "0.1.0",
+  "entry": "/ai/bin/a-ls",
+  "tests": "/ai/apps/fileutils/tests/run.sh",
+  "lang": "sh",
+  "tests_pass": true
+}

@@ -1,0 +1,8 @@
+{
+  "name": "jobs",
+  "version": "0.1.0",
+  "entry": "/ai/bin/jobs",
+  "tests": "/ai/apps/jobs/tests/run.sh",
+  "lang": "python",
+  "tests_pass": true
+}

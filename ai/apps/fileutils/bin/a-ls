@@ -1,0 +1,8 @@
+#!/bin/sh
+set -eu
+[ "$#" -le 2 ] || { echo 'usage: a-ls [-l] [path]' >&2; exit 2; }
+long=
+if [ "${1:-}" = -l ]; then long=1; shift; fi
+path=${1:-.}
+[ -n "$long" ] && exec ls -la -- "$path"
+exec ls -a -- "$path"

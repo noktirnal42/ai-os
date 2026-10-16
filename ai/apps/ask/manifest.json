@@ -1,0 +1,8 @@
+{
+  "name": "ask",
+  "version": "0.1.0",
+  "entry": "/ai/bin/ask",
+  "tests": "/ai/apps/ask/tests/run.sh",
+  "lang": "sh",
+  "tests_pass": true
+}

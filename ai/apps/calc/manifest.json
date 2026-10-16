@@ -1,0 +1,8 @@
+{
+  "name": "calc",
+  "version": "0.1.0",
+  "entry": "/ai/bin/calc",
+  "tests": "/ai/apps/calc/tests/run.sh",
+  "lang": "c",
+  "tests_pass": true
+}

@@ -1,0 +1,12 @@
+#!/bin/sh
+set -eu
+force=
+if [ "${1:-}" = --force-ai ]; then force=1; shift; fi
+[ "$#" -ge 1 ] || { echo 'usage: a-rm [-r] PATH' >&2; exit 2; }
+recursive=
+if [ "$1" = -r ]; then recursive=1; shift; fi
+[ "$#" -eq 1 ] || { echo 'usage: a-rm [-r] PATH' >&2; exit 2; }
+path=$(readlink -f -- "$1" 2>/dev/null || realpath -- "$1" 2>/dev/null || printf '%s' "$1")
+case "$path" in /|/usr|/usr/*|/etc|/etc/*|/home|/home/*|/root|/root/*) echo 'error: refusing protected path' >&2; exit 1;; esac
+case "$path" in /ai|/ai/*) [ -n "$force" ] || { echo 'error: refusing /ai without --force-ai' >&2; exit 1; };; esac
+[ -n "$recursive" ] && exec rm -rf -- "$1" || exec rm -f -- "$1"

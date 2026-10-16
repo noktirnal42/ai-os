@@ -1,0 +1,20 @@
+name: checks
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  host:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+      - name: Run harness and app checks
+        run: make -C ai test calc-test fileutils-test jobs-test aed-test ask-test
+      - name: Run deterministic evals
+        run: |
+          AIOS_ROOT="$RUNNER_TEMP/aios-evals" make -C ai eval
+          AIOS_ROOT="$RUNNER_TEMP/aios-probes" make -C ai sandbox-probes

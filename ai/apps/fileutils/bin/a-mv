@@ -1,0 +1,4 @@
+#!/bin/sh
+set -eu
+[ "$#" -eq 2 ] || { echo 'usage: a-mv SRC DST' >&2; exit 2; }
+exec mv -- "$1" "$2"

@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 240" role="img" aria-labelledby="title desc">
+  <title id="title">AI OS mark</title><desc id="desc">A cyan and violet orbital mark beside the AI OS wordmark.</desc>
+  <defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#4DE1FF"/><stop offset="1" stop-color="#9B6CFF"/></linearGradient></defs>
+  <rect width="720" height="240" rx="36" fill="#08111F"/>
+  <g transform="translate(34 34)"><circle cx="86" cy="86" r="61" fill="none" stroke="url(#g)" stroke-width="12"/><ellipse cx="86" cy="86" rx="76" ry="30" fill="none" stroke="#4DE1FF" stroke-width="8" transform="rotate(-28 86 86)"/><circle cx="86" cy="86" r="18" fill="#F5FBFF"/><circle cx="147" cy="56" r="9" fill="#9B6CFF"/></g>
+  <text x="220" y="112" fill="#F5FBFF" font-family="Inter,Helvetica,Arial,sans-serif" font-size="72" font-weight="800" letter-spacing="-3">AI OS</text>
+  <text x="225" y="153" fill="#91A7C2" font-family="Inter,Helvetica,Arial,sans-serif" font-size="18" letter-spacing="4">BUILD THE MACHINE WITH THE MACHINE</text>
+</svg>

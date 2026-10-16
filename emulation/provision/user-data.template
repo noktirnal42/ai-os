@@ -1,0 +1,48 @@
+#cloud-config
+hostname: ${GUEST_HOSTNAME}
+users:
+  - name: ${GUEST_USER}
+    sudo: ["ALL=(ALL) NOPASSWD:ALL"]
+    groups: [wheel]
+    shell: /bin/ash
+    # OpenSSH on Alpine rejects a locked account even for public-key auth.
+    # Password authentication stays disabled globally; no usable password is set.
+    lock_passwd: false
+    hashed_passwd: "*"
+    ssh_authorized_keys:
+      - ${HOST_PUBKEY}
+ssh_pwauth: false
+ssh_deletekeys: false
+package_update: true
+packages:
+  - git
+  - gcc
+  - make
+  - musl-dev
+  - curl
+  - rsync
+  - python3
+  - sudo
+  - e2fsprogs
+  - cloud-utils-growpart
+growpart:
+  mode: auto
+  devices: ['/']
+resize_rootfs: true
+write_files:
+  - path: /etc/profile.d/aios.sh
+    permissions: '0644'
+    content: |
+      export AIOS_MODEL_URL=${MODEL_URL}
+      export AIOS_EMULATED=1
+      export PATH="/ai/bin:$PATH"
+  - path: /etc/motd
+    content: |
+      AI OS emulator (Alpine aarch64) — model endpoint: ${MODEL_URL}
+      Agent workspace: /ai   |   tools: emulation/vm.sh
+runcmd:
+  - mkdir -p /ai/bin /ai/apps /ai/lib /ai/state /ai/secrets /ai/tmp /ai/out /ai/checkpoints /ai/models
+  - chown -R ${GUEST_USER}:${GUEST_USER} /ai
+  - chmod 700 /ai/secrets
+  - touch /ai/.provisioned
+final_message: "AI OS emulator ready after $UPTIME seconds"

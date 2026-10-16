@@ -1,0 +1,21 @@
+# runtime state (never commit)
+emulation/artifacts/
+emulation/models/
+*.qcow2
+*.iso
+*.pid
+.DS_Store
+
+# editor
+.vscode/
+.idea/
+
+# Python verification cache
+__pycache__/
+*.pyc
+
+# local build output
+ai/apps/calc/build/
+
+# OS/editor noise
+.DS_Store

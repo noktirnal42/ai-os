@@ -1,0 +1,7 @@
+#!/bin/sh
+set -eu
+[ "$#" -ge 3 ] && [ "$2" = -name ] || { echo 'usage: a-find PATH -name PATTERN [-type f|d]' >&2; exit 2; }
+path=$1; pattern=$3; shift 3
+if [ "$#" -eq 0 ]; then exec find "$path" -name "$pattern" -print; fi
+[ "$#" -eq 2 ] && [ "$1" = -type ] && { [ "$2" = f ] || [ "$2" = d ]; } || { echo 'usage: a-find PATH -name PATTERN [-type f|d]' >&2; exit 2; }
+exec find "$path" -name "$pattern" -type "$2" -print

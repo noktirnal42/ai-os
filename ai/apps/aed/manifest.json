@@ -1,0 +1,8 @@
+{
+  "name": "aed",
+  "version": "0.1.0",
+  "entry": "/ai/bin/aed",
+  "tests": "/ai/apps/aed/tests/run.sh",
+  "lang": "python",
+  "tests_pass": true
+}
