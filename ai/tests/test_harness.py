@@ -38,6 +38,14 @@ class HarnessTests(unittest.TestCase):
         result = s.call_tool("shell", {"cmd": "printf 'x%.0s' $(seq 1 5000)", "workdir": str(self.root / "apps")})
         self.assertTrue(result["truncated"]); self.assertIn("error", s.call_tool("shell", {"cmd": "cat /etc/shadow"}))
         self.assertIn("error", s.call_tool("shell", {"cmd": "curl http://example.com"}))
+        self.assertEqual(s.call_tool("shell", {"cmd": "pwd", "workdir": str(self.root)})["stdout"].strip(), str(self.root))
+
+    def test_repeated_malformed_tool_call_is_stopped_with_actionable_error(self):
+        s = self.session()
+        args = {"cmd": {"type": "string"}, "workdir": {"type": "string"}}
+        results = [s.call_tool("shell", args) for _ in range(4)]
+        self.assertIn("command string", results[0]["error"])
+        self.assertIn("repeated four times", results[3]["error"])
 
     def test_checkpoint_round_trip(self):
         s = self.session(); (self.root / "apps" / "marker").write_text("before")
@@ -123,6 +131,35 @@ class HarnessTests(unittest.TestCase):
         self.assertEqual(session.run(), 0)
         self.assertEqual((self.root / "apps" / "built.txt").read_text(), "built")
         self.assertEqual(session.client.calls, 2)
+        verdicts = [json.loads(line) for line in session.log.path.read_text().splitlines()]
+        verdict = next(row for row in verdicts if row["ev"] == "verdict")
+        self.assertEqual(verdict["kind"], "partial")
+        self.assertFalse(verdict["verified"])
+
+    def test_required_command_nudges_early_final_and_verifies_success(self):
+        root = self.root
+        command = "printf REQUIRED_TEST_OK"
+        class FakeClient:
+            offline = False
+            def __init__(self): self.calls = 0
+            def chat(self, messages, tools):
+                self.calls += 1
+                if self.calls == 1:
+                    return {"choices": [{"message": {"role": "assistant", "content": "Done."}}]}
+                if self.calls == 2:
+                    args = {"cmd": command, "workdir": str(root / "apps")}
+                    return {"choices": [{"message": {"role": "assistant", "content": "", "tool_calls": [{"id": "verify", "function": {"name": "shell", "arguments": json.dumps(args)}}]}}]}
+                return {"choices": [{"message": {"role": "assistant", "content": "Verified."}}]}
+        session = aios.Session("required test", FakeClient(), max_tools=4, max_seconds=5,
+                               required_commands=(command,))
+        self.assertEqual(session.run(), 0)
+        self.assertEqual(session.client.calls, 3)
+        verdicts = [json.loads(line) for line in session.log.path.read_text().splitlines()]
+        verdict = next(row for row in verdicts if row["ev"] == "verdict")
+        self.assertEqual(verdict["kind"], "succeeded")
+        self.assertTrue(verdict["verified"])
+        shell_result = next(row for row in verdicts if row["ev"] == "tool_result" and row["tool"] == "shell")
+        self.assertEqual(shell_result["command_exit"], 0)
 
     def test_text_tool_fallback_accepts_documented_protocol_and_one_call(self):
         response = '''Plan:
@@ -146,6 +183,20 @@ class HarnessTests(unittest.TestCase):
             '{"name":"invented_tool","arguments":{}}'))
         self.assertIsNone(aios.Session.text_tool_call(
             'Example only: {"name":"fs_write","arguments":{}}'))
+
+    def test_text_tool_fallback_maps_in_workspace_shell_script_shape(self):
+        script = self.root / "apps" / "demo" / "tests" / "run.sh"
+        script.parent.mkdir(parents=True)
+        script.write_text("#!/bin/sh\nexit 0\n")
+        response = json.dumps({"name": "/bin/sh", "arguments": {
+            "path": str(script), "workdir": str(script.parent)}})
+        call = aios.Session.text_tool_call(response)
+        self.assertEqual(call["function"]["name"], "shell")
+        args = json.loads(call["function"]["arguments"])
+        self.assertEqual(args["cmd"], f"/bin/sh {script}")
+        self.assertEqual(args["workdir"], str(script.parent))
+        outside = json.dumps({"name": "/bin/sh", "arguments": {"path": "/etc/passwd"}})
+        self.assertIsNone(aios.Session.text_tool_call(outside))
 
 
 if __name__ == "__main__": unittest.main()

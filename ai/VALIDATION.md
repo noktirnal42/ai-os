@@ -5,7 +5,7 @@ emulator. This is a Python reference harness plus the first Phase 1 utilities.
 
 Guest evidence:
 
-* `make test`: 11 harness tests pass, including JSON tool-call fallback coverage
+* `make test`: 14 harness tests pass, including JSON tool-call fallback coverage
   for the documented and observed local-model formats and registry budget
   coverage after multi-step builds.
 * `make calc-test`: calculator acceptance passed with `ALL PASS` under Alpine GCC.
@@ -46,14 +46,19 @@ Guest evidence:
   installer reran the acceptance test successfully, and the registry records
   `tests_pass: true`. This verifies the install loop after an operator test fix;
   autonomous acceptance-test authoring remains an open limitation.
-* Repeatable live self-build eval (`qwen2.5-coder:7b`, Alpine aarch64 guest):
-  the model wrote the exact C source, POSIX acceptance script, and manifest,
-  then compiled a guest ELF successfully. Independent evaluator checks confirmed
-  exact output, a passing acceptance script, rejection of a deliberately bad
-  binary, and restoration of the original binary. The model stopped after
-  compilation without running its requested acceptance command, so the eval
-  correctly records `pass: false`; autonomous build-and-test completion remains
-  unproven. Results are appended to `/ai/state/evals/live-self-build.jsonl`.
+* Repeatable live self-build eval (`qwen2.5-coder:3b`, Alpine aarch64 guest):
+  after the harness added explicit required compiler/test commands, bounded
+  continuation on early final responses, duplicate-call feedback, and a narrow
+  in-workspace `/bin/sh` fallback, three consecutive runs passed. In each run
+  AI OS wrote the source, acceptance script, and manifest, compiled the guest
+  ELF, and ran the acceptance test; the harness logged verified success for
+  both required commands. Independent checks confirmed exact app output, a
+  passing positive test, rejection of a deliberately bad binary, and restoration
+  of the original binary. No install or registry operation was requested.
+  A Qwen 2.5 Coder 7B cross-check compiled the app and passed independent
+  acceptance, but did not call its required test command through the harness;
+  it correctly scored false. Qwen 7B autonomous completion remains unproven.
+  Per-run JSONL evidence is in `/ai/state/evals/live-self-build.jsonl`.
 * The read-only Phase 2 network probe records `/ai/state/net.json` with schema
   version, interface/route observations, and `emulated: true`; it performs no
   interface mutation or external fetch.

@@ -45,6 +45,12 @@ Loop invariants:
 - **Stateless steps**: each model call is complete; no hidden state beyond `history`.
 - **Verifiable**: the loop never declares success on its own say-so; success claims
   must reference a passing command (`tests_pass`, exit code) — see §6.
+- **Non-repeating**: after four identical tool requests, the harness returns an
+  actionable error without executing another duplicate.
+- Required verification commands may be supplied with `--require-command`. A final
+  model response before every required command exits zero is fed back as an
+  incomplete-verification reminder (up to three nudges within the normal session
+  budget); the harness records `succeeded` only after those exact commands pass.
 
 ## 3. Tool catalog
 
@@ -53,7 +59,7 @@ surface.
 
 | Tool | Schema (abridged) | Behavior |
 |---|---|---|
-| `shell` | `{cmd: string, timeout_s?: int≤300, workdir?: path∈/ai\|/tmp}` | Exec in sandbox (§5). Returns `{exit, stdout, stderr, truncated}` |
+| `shell` | `{cmd: string, timeout_s?: int≤300, workdir?: path∈/ai\|/tmp}` | Exec in sandbox (§5). Returns `{exit, stdout, stderr, truncated}`; `/ai` itself and approved workspace subdirectories are valid working directories. |
 | `fs_read` | `{path, offset?: int, max_bytes?: int≤65536}` | Read-only file access, sandbox-checked |
 | `fs_write` | `{path, content, mode?: "overwrite"\|"append"}` | Only under `/ai`; refuses host paths |
 | `proc` | `{op: "list"\|"kill", pid?}` | List agent-spawned procs; kill by pid (guarded) |
@@ -144,6 +150,9 @@ On breach: loop stops, emits `budget_exhausted` event, session is `paused` not
 
 A session ends with one of: `succeeded` (all declared tasks verified), `partial`
 (some verified; list), `failed` (error + rollback offered), `paused` (budget).
+If the model returns a final message without an independent verifier for the
+declared task, the harness records `partial` with `verified: false`; a model's
+own completion claim is never sufficient for `succeeded`.
 **Verified** means: the specific acceptance command named in the task (e.g. `cd
 /ai/apps/calc/tests && ./run.sh && echo PASS`) exited 0 with the expected marker in
 the sandbox. The harness computes verdicts; the model may only *claim* them.

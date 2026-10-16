@@ -34,6 +34,8 @@ def main() -> int:
     source = app / "src" / "main.c"
     test = app / "tests" / "run.sh"
     manifest_path = app / "manifest.json"
+    compiler_command = f"gcc -Wall -Wextra -Werror {source} -o {entry}"
+    acceptance_command = f"/bin/sh {test}"
     goal = f'''Build one tiny C app named {name} entirely inside /ai using fs_write and shell tools. Use one tool action per turn and inspect each result.
 Write /ai/apps/{name}/src/main.c with this exact content:
 #include <stdio.h>
@@ -49,7 +51,7 @@ actual=$(/ai/bin/{name})
 [ "$actual" = "SELF_BUILD_OK" ]
 echo SELF_BUILD_PASS
 Write /ai/apps/{name}/manifest.json as valid JSON with exactly these fields: name {name}, version 0.1.0, entry /ai/bin/{name}, tests /ai/apps/{name}/tests/run.sh.
-Compile the C source with gcc -Wall -Wextra -Werror to /ai/bin/{name}. Set the shell workdir to /ai/apps/{name} (the shell tool requires an allowed workspace subdirectory). Run the acceptance script with /bin/sh and inspect the result. Do not register or install the app, do not call ask_human, do not use network, and do not modify any other app or system path. Finish after the acceptance script passes.'''
+Compile with this exact command: gcc -Wall -Wextra -Werror /ai/apps/{name}/src/main.c -o /ai/bin/{name}. Set workdir to /ai/apps/{name}. The output path must be the absolute /ai/bin/{name}; a relative bin path would create the binary in the wrong directory. After the compiler reports exit 0, your very next tool action must be this exact acceptance command: /bin/sh /ai/apps/{name}/tests/run.sh with workdir /ai/apps/{name}. Inspect its exit code and SELF_BUILD_PASS output. Do not finish or claim completion before that command passes. Do not register or install the app, do not call ask_human, do not use network, and do not modify any other app or system path.'''
 
     sessions_dir = root / "state" / "sessions"
     sessions_dir.mkdir(parents=True, exist_ok=True)
@@ -60,7 +62,12 @@ Compile the C source with gcc -Wall -Wextra -Werror to /ai/bin/{name}. Set the s
     returncode = 124
     try:
         proc = subprocess.run(
-            [str(aios), "run", "--max-tools", "24", "--max-seconds", "420", goal],
+            [
+                str(aios), "run", "--max-tools", "24", "--max-seconds", "420",
+                "--require-command", compiler_command,
+                "--require-command", acceptance_command,
+                goal,
+            ],
             text=True,
             capture_output=True,
             timeout=450,
@@ -122,6 +129,13 @@ Compile the C source with gcc -Wall -Wextra -Werror to /ai/bin/{name}. Set the s
             event.get("ev") == "tool_call" and event.get("tool") in {"registry", "ask_human"}
             for event in events
         ),
+        "harness_verified_required_commands": any(
+            event.get("ev") == "verdict"
+            and event.get("kind") == "succeeded"
+            and event.get("verified") is True
+            and event.get("required_commands") == [compiler_command, acceptance_command]
+            for event in events
+        ),
     }
     checks["source_matches_safe_template"] = source.is_file() and source.read_text() == expected_source
     checks["test_matches_safe_template"] = test.is_file() and test.read_text() == expected_test
@@ -142,14 +156,20 @@ Compile the C source with gcc -Wall -Wextra -Werror to /ai/bin/{name}. Set the s
     checks["model_wrote_all_three_files"] = all(
         str(path) in writes for path in (source, test, manifest_path)
     )
-    shell_commands = [
+    successful_shell_calls = [
         event.get("args", {}).get("cmd")
-        for event in events
+        for index, event in enumerate(events[:-1])
         if event.get("ev") == "tool_call" and event.get("tool") == "shell"
         and isinstance(event.get("args"), dict)
+        and events[index + 1].get("ev") == "tool_result"
+        and events[index + 1].get("tool") == "shell"
+        and events[index + 1].get("command_exit") == 0
     ]
-    checks["model_called_compiler"] = any(isinstance(cmd, str) and "gcc" in cmd and name in cmd for cmd in shell_commands)
-    checks["model_ran_acceptance"] = any(isinstance(cmd, str) and str(test) in cmd for cmd in shell_commands)
+    checks["model_called_compiler"] = any(
+        isinstance(cmd, str) and "gcc" in cmd and name in cmd
+        for cmd in successful_shell_calls
+    )
+    checks["model_ran_acceptance"] = f"/bin/sh {test}" in successful_shell_calls
 
     safe_artifacts = (
         checks["source_matches_safe_template"]
