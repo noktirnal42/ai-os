@@ -5,7 +5,9 @@ emulator. This is a Python reference harness plus the first Phase 1 utilities.
 
 Guest evidence:
 
-* `make test`: 8 harness tests passed after the gated installer update.
+* `make test`: 11 harness tests pass, including JSON tool-call fallback coverage
+  for the documented and observed local-model formats and registry budget
+  coverage after multi-step builds.
 * `make calc-test`: calculator acceptance passed with `ALL PASS` under Alpine GCC.
 * `calc "2^10"`: printed `1024`.
 * `make fileutils-test`: file utilities acceptance passed with `FILEUTILS ALL PASS`.
@@ -34,6 +36,16 @@ Guest evidence:
   This trial needed several focused prompts after the first build attempt
   stopped with incomplete files; autonomous long-horizon completion is still
   unproven.
+* Follow-up build-loop evaluation: text-only JSON responses with multiple tool
+  requests are now handled one request at a time, and the registry rate limit
+  counts registry calls rather than all build tools. In the guest, Qwen generated
+  `hello-loop2` source and manifest and compiled the binary. Its generated
+  acceptance scripts were defective, so the operator replaced the test with a
+  fail-closed POSIX script and verified `HELLO_LOOP2_PASS`. AI OS then requested
+  `registry install`; the human approved the displayed entry/test summary, the
+  installer reran the acceptance test successfully, and the registry records
+  `tests_pass: true`. This verifies the install loop after an operator test fix;
+  autonomous acceptance-test authoring remains an open limitation.
 * The read-only Phase 2 network probe records `/ai/state/net.json` with schema
   version, interface/route observations, and `emulated: true`; it performs no
   interface mutation or external fetch.

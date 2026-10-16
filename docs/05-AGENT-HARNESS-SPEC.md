@@ -63,7 +63,8 @@ surface.
 
 Notes:
 - Model never calls `registry`/`checkpoint`/`ask_human` more than needed — prompt
-  discourages; harness enforces rate (≤5 registry ops/session).
+  discourages; harness enforces rate (≤5 registry calls/session, independent of
+  the total build/test tool-call count).
 - `registry install` requires `/ai/apps/<name>/manifest.json`, an installed entry
   under `/ai/bin`, and `/ai/apps/<name>/tests/run.sh`. The manifest is the source
   of truth; `tests_pass` is set by the harness only after the approved test run.
@@ -74,14 +75,18 @@ Notes:
 ## 4. Tool-call format & fallback
 
 Preferred: model-native tool calling (Qwen2.5/Llama-3.1 format via llama-server's
-`tools` parameter). Fallback (no-native-format models): **JSON-strict protocol** —
-system prompt mandates the model end each turn with exactly one fenced JSON block:
+`tools` parameter). Fallback (no-native-format models): the harness extracts the
+first recognized tool object from text-only JSON output. It accepts both the
+documented fenced form and the `name`/`arguments` form emitted by local models;
+only one fallback action executes per model turn, and the model sees its result
+before selecting another action. The system prompt asks for one action per turn
+and requires tool evidence for claims about builds and tests. For example:
 
 ```json
 {"tool": "shell", "args": {"cmd": "gcc -o /ai/bin/calc /ai/apps/calc/src/calc.c"}}
 ```
-A parse failure injects one corrective message, max 2 per session before the harness
-downgrades to plain chat + human relaying.
+Unknown tool names, malformed JSON, or non-object arguments are ignored as tool
+requests; the response is treated as ordinary assistant text.
 
 ## 5. Sandbox (see doc 09 for threat model)
 
