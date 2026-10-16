@@ -59,6 +59,18 @@ Guest evidence:
   acceptance, but did not call its required test command through the harness;
   it correctly scored false. Qwen 7B autonomous completion remains unproven.
   Per-run JSONL evidence is in `/ai/state/evals/live-self-build.jsonl`.
+* New-app build eval: AI OS generated a streaming C line counter, compiler
+  command, acceptance test, and manifest. The first build missed the empty
+  input case; a bounded Qwen 7B repair wrote the `saw_input` correction, and a
+  subsequent AI OS verification session compiled the repaired source and ran
+  its acceptance test with a verified-success verdict. The evaluator's
+  `--score-existing <app-name>` mode combines sessions tied to the app and
+  independently reruns seven resource-limited hidden cases. All seven passed:
+  empty input, one line, unterminated final line, blank lines, mixed lines, 512
+  lines, and a 64 KiB line. The exact acceptance script passed, rejected a
+  deliberately bad binary, and passed again after binary restoration. This is
+  a verified generated-app pass after a repair cycle, not a claim of one-shot
+  completion. Evidence is in `/ai/state/evals/live-app-build.jsonl`.
 * The read-only Phase 2 network probe records `/ai/state/net.json` with schema
   version, interface/route observations, and `emulated: true`; it performs no
   interface mutation or external fetch.

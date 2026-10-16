@@ -47,6 +47,16 @@ class HarnessTests(unittest.TestCase):
         self.assertIn("command string", results[0]["error"])
         self.assertIn("repeated four times", results[3]["error"])
 
+    def test_nested_shell_command_shape_is_normalized_and_audited(self):
+        s = self.session()
+        result = s.call_tool("shell", {"cmd": {
+            "cmd": "printf NESTED_OK", "timeout_s": 5,
+            "workdir": str(self.root / "apps")}})
+        self.assertEqual(result["exit"], 0)
+        self.assertEqual(result["stdout"], "NESTED_OK")
+        events = [json.loads(line) for line in s.log.path.read_text().splitlines()]
+        self.assertTrue(any(row["ev"] == "tool_args_normalized" for row in events))
+
     def test_checkpoint_round_trip(self):
         s = self.session(); (self.root / "apps" / "marker").write_text("before")
         self.assertEqual(s.call_tool("checkpoint", {"op": "create", "tag": "baseline"}), {"created": "baseline"})
