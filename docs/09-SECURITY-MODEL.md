@@ -73,8 +73,11 @@ directly into the hook; the model never sees them (P2 prompt bakes this).
 
 - All code lives in `/ai`; binaries in `/ai/bin` — the host PATH places `/ai/bin`
   *after* system paths so nothing shadows a system tool.
-- `registry install` requires: manifest present, tests ran green **this session**,
-  human-visible diff summary at install time (v1: install prints the file list).
+- `registry install` requires: manifest present, entry under `/ai/bin`, fixed
+  acceptance script under that app's `/ai/apps/<name>/tests/run.sh`, human
+  approval after the entry/test summary is shown, and tests green **this session**.
+  Tests run with network disabled and a 300-second timeout; the harness derives
+  `tests_pass` instead of trusting the model-supplied field.
 - No auto-update, no post-install scripts, no daemons binding non-loopback —
   `cloudbridge` binding `127.0.0.1` is checked by its tests.
 

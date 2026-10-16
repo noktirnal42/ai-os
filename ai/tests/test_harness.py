@@ -47,16 +47,45 @@ class HarnessTests(unittest.TestCase):
         self.assertEqual((self.root / "apps" / "marker").read_text(), "before")
 
     def test_registry_manifest_and_audit(self):
-        s = self.session(); result = s.call_tool("registry", {"op": "install", "name": "hello", "manifest": {"name": "hello", "version": "0.1", "entry": "/ai/bin/hello", "tests": "/ai/apps/hello/tests/run.sh", "tests_pass": True}})
+        self.prepare_app("hello", "exit 0\nprintf 'HELLO TEST PASS\\n'\n")
+        s = self.session()
+        with mock.patch.object(s, "ask_human", return_value={"approved": True}) as gate:
+            result = s.call_tool("registry", {"op": "install", "name": "hello"})
+        self.assertNotIn("error", result, result)
+        self.assertIn("acceptance test:", gate.call_args.args[0]["question"])
         self.assertTrue(result["registry"]["hello"]["tests_pass"])
         rows = [json.loads(line) for line in s.log.path.read_text().splitlines()]
         self.assertTrue(any(row["ev"] == "tool_result" for row in rows))
+        self.assertTrue(any(row["ev"] == "registry_test" and row["exit"] == 0 for row in rows))
 
     def test_registry_rejects_incomplete_or_unsafe_manifest(self):
+        self.prepare_app("bad", "exit 0\n", entry="/etc/thing")
         s = self.session()
-        self.assertIn("error", s.call_tool("registry", {"op": "install", "name": "bad", "manifest": {"version": "0.1"}}))
-        unsafe = {"name": "bad", "version": "0.1", "entry": "/etc/thing", "tests": "/ai/apps/bad/tests/run.sh", "tests_pass": True}
-        self.assertIn("error", s.call_tool("registry", {"op": "install", "name": "bad", "manifest": unsafe}))
+        self.assertIn("error", s.call_tool("registry", {"op": "install", "name": "bad"}))
+        self.prepare_app("bad", "exit 1\n")
+        with mock.patch.object(s, "ask_human", return_value={"approved": True}):
+            self.assertIn("error", s.call_tool("registry", {"op": "install", "name": "bad"}))
+        registry_file = self.root / "state" / "registry.json"
+        self.assertFalse(registry_file.exists())
+
+    def test_registry_install_requires_human_approval_before_tests(self):
+        self.prepare_app("gated", "touch test-ran\nexit 0\n")
+        s = self.session()
+        with mock.patch.object(s, "ask_human", return_value={"approved": False}):
+            result = s.call_tool("registry", {"op": "install", "name": "gated"})
+        self.assertIn("error", result)
+        self.assertFalse((self.root / "apps" / "gated" / "test-ran").exists())
+
+    def prepare_app(self, name, test_script, entry=None):
+        app = self.root / "apps" / name
+        (app / "tests").mkdir(parents=True, exist_ok=True)
+        executable = self.root / "bin" / name
+        executable.write_text("#!/bin/sh\nexit 0\n")
+        tests = app / "tests" / "run.sh"
+        tests.write_text("#!/bin/sh\nset -eu\n" + test_script)
+        manifest = {"name": name, "version": "0.1.0", "entry": entry or str(executable),
+                    "tests": str(tests), "tests_pass": False}
+        (app / "manifest.json").write_text(json.dumps(manifest))
 
     def test_net_status_is_read_only_and_persisted(self):
         s = self.session()
