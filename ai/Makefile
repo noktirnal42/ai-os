@@ -1,4 +1,4 @@
-.PHONY: test calc-test fileutils-test jobs-test aed-test ask-test eval sandbox-probes live-model-test
+.PHONY: test calc-test fileutils-test jobs-test aed-test ask-test eval sandbox-probes live-model-test net-probe
 
 test:
 	python3 -m unittest discover -s tests -v
@@ -26,3 +26,6 @@ sandbox-probes:
 
 live-model-test:
 	./evals/live-model.sh
+
+net-probe:
+	python3 evals/net-probe.py

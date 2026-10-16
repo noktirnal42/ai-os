@@ -105,6 +105,7 @@ TOOLS = [
     {"type": "function", "function": {"name": "registry", "description": "Install, remove, or query a manifest-backed app.", "parameters": {"type": "object", "properties": {"op": {"enum": ["install", "remove", "query"]}, "name": {"type": "string"}, "manifest": {"type": "object"}}, "required": ["op", "name"]}}},
     {"type": "function", "function": {"name": "checkpoint", "description": "Create, rollback, or list an AI workspace checkpoint.", "parameters": {"type": "object", "properties": {"op": {"enum": ["create", "rollback", "list"]}, "tag": {"type": "string"}}, "required": ["op"]}}},
     {"type": "function", "function": {"name": "ask_human", "description": "Request an explicit human decision.", "parameters": {"type": "object", "properties": {"question": {"type": "string"}, "options": {"type": "array", "items": {"type": "string"}}}, "required": ["question"]}}},
+    {"type": "function", "function": {"name": "net", "description": "Read emulated network interface and route state into /ai/state/net.json. Read-only; does not configure networking.", "parameters": {"type": "object", "properties": {"op": {"enum": ["status"]}}, "required": ["op"]}}},
 ]
 
 
@@ -139,6 +140,7 @@ class Session:
             elif name == "registry": out = self.registry(args)
             elif name == "checkpoint": out = self.checkpoint(args)
             elif name == "ask_human": out = self.ask_human(args)
+            elif name == "net": out = self.net(args)
             else: raise ValueError(f"unknown tool: {name}")
         except Exception as exc: out = {"error": str(exc)}
         self.log.emit("tool_result", tool=name, exit=0 if "error" not in out else 1, bytes=len(json.dumps(out)))
@@ -155,6 +157,23 @@ class Session:
         proc = subprocess.run(["/bin/sh", "-c", cmd], cwd=workdir, text=True, capture_output=True, timeout=timeout, env={**os.environ, "HOME": "/ai"})
         stdout, st = trim(proc.stdout); stderr, et = trim(proc.stderr)
         return {"exit": proc.returncode, "stdout": stdout, "stderr": stderr, "truncated": st or et}
+
+    def net(self, args: dict[str, Any]) -> dict[str, Any]:
+        if args.get("op") != "status": raise ValueError("invalid net op")
+        def read_json(command: list[str]) -> Any:
+            result = subprocess.run(command, text=True, capture_output=True, timeout=10, check=False)
+            if result.returncode != 0: raise RuntimeError(result.stderr.strip() or "network query failed")
+            return json.loads(result.stdout or "[]")
+        payload = {
+            "schema_version": 1,
+            "observed_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+            "emulated": os.environ.get("AIOS_EMULATED", "1") == "1",
+            "interfaces": read_json(["/sbin/ip", "-j", "addr"]),
+            "routes": read_json(["/sbin/ip", "-j", "route"]),
+        }
+        path = AI_ROOT / "state" / "net.json"; path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n")
+        return {"path": str(path), "interfaces": len(payload["interfaces"]), "routes": len(payload["routes"]), "emulated": payload["emulated"]}
 
     def fs_read(self, args: dict[str, Any]) -> dict[str, Any]:
         path = safe_path(args["path"], READ_ROOTS)
