@@ -41,6 +41,11 @@ App registration is also gated. The model requests `registry install` by app
 name; the harness reads that app's manifest, shows the entry and fixed test
 script to the human, requires approval, runs the test with network disabled,
 and derives `tests_pass` from the test result before updating the registry.
+For a repeatable model-driven build check without an install prompt, set
+`AIOS_MODEL_URL` and `AIOS_MODEL` and run `make -C ai live-self-build-test` in
+the Alpine guest. It creates a uniquely named demo app, validates generated
+source and manifest against the task contract, runs positive and negative
+acceptance checks, and appends its evidence to `/ai/state/evals/live-self-build.jsonl`.
 
 The first Phase 1 application is `apps/calc`. Its acceptance command is
 `/ai/apps/calc/tests/run.sh`; a successful build installs `/ai/bin/calc` and

@@ -46,6 +46,14 @@ Guest evidence:
   installer reran the acceptance test successfully, and the registry records
   `tests_pass: true`. This verifies the install loop after an operator test fix;
   autonomous acceptance-test authoring remains an open limitation.
+* Repeatable live self-build eval (`qwen2.5-coder:7b`, Alpine aarch64 guest):
+  the model wrote the exact C source, POSIX acceptance script, and manifest,
+  then compiled a guest ELF successfully. Independent evaluator checks confirmed
+  exact output, a passing acceptance script, rejection of a deliberately bad
+  binary, and restoration of the original binary. The model stopped after
+  compilation without running its requested acceptance command, so the eval
+  correctly records `pass: false`; autonomous build-and-test completion remains
+  unproven. Results are appended to `/ai/state/evals/live-self-build.jsonl`.
 * The read-only Phase 2 network probe records `/ai/state/net.json` with schema
   version, interface/route observations, and `emulated: true`; it performs no
   interface mutation or external fetch.
