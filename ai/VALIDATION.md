@@ -25,6 +25,9 @@ Guest evidence:
 * The read-only Phase 2 network probe records `/ai/state/net.json` with schema
   version, interface/route observations, and `emulated: true`; it performs no
   interface mutation or external fetch.
+* `apps/net/tests/run.sh` passes the operator network gate and host allowlist
+  checks, then verifies a bounded local HTTP fetch; denied requests remain
+  denied when either control is absent.
 * The harness fake-model test drove a real `fs_write` tool call, verified the file
   mutation, then completed the session with an assistant message.
 * Live inference through the host Ollama OpenAI-compatible endpoint succeeded:

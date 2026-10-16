@@ -27,6 +27,11 @@ The first Phase 2 capability is deliberately read-only: `net status` records
 structured interface and route observations in `/ai/state/net.json` with an
 `emulated` marker. It does not configure interfaces or enable network commands.
 
+The bounded `net` app adds `a-fetch`, which requires the explicit
+`AIOS_ALLOW_NETWORK=1` operator gate and an `AIOS_FETCH_ALLOWLIST` host allowlist.
+It accepts only HTTP(S), rejects embedded credentials, caps responses at 64 KiB,
+and limits requests to ten seconds.
+
 The first Phase 1 application is `apps/calc`. Its acceptance command is
 `/ai/apps/calc/tests/run.sh`; a successful build installs `/ai/bin/calc` and
 `calc "2^10"` prints `1024`.

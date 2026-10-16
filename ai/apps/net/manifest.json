@@ -1,0 +1,9 @@
+{
+  "name": "net",
+  "version": "0.1.0",
+  "entry": "/ai/apps/net/bin/a-fetch",
+  "tests": "/ai/apps/net/tests/run.sh",
+  "lang": "python",
+  "tests_pass": true,
+  "capabilities": ["network:allowlist", "network:operator-gated"]
+}
