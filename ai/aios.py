@@ -102,7 +102,7 @@ TOOLS = [
     {"type": "function", "function": {"name": "fs_read", "description": "Read an allowed AI OS file slice.", "parameters": {"type": "object", "properties": {"path": {"type": "string"}, "offset": {"type": "integer"}, "max_bytes": {"type": "integer"}}, "required": ["path"]}}},
     {"type": "function", "function": {"name": "fs_write", "description": "Write an allowed AI OS file.", "parameters": {"type": "object", "properties": {"path": {"type": "string"}, "content": {"type": "string"}, "mode": {"enum": ["overwrite", "append"]}}, "required": ["path", "content"]}}},
     {"type": "function", "function": {"name": "proc", "description": "List or kill a process started by this session.", "parameters": {"type": "object", "properties": {"op": {"enum": ["list", "kill"]}, "pid": {"type": "integer"}}, "required": ["op"]}}},
-    {"type": "function", "function": {"name": "registry", "description": "Install, remove, or query a manifest-backed app.", "parameters": {"type": "object", "properties": {"op": {"enum": ["install", "remove", "query"]}, "name": {"type": "string"}, "manifest": {"type": "object"}}, "required": ["op", "name"]}}},
+    {"type": "function", "function": {"name": "registry", "description": "Query or remove an app registry entry. Install reads /ai/apps/<name>/manifest.json, verifies its /ai/bin entry, runs its acceptance script with network disabled, and registers only on success.", "parameters": {"type": "object", "properties": {"op": {"enum": ["install", "remove", "query"]}, "name": {"type": "string"}}, "required": ["op", "name"]}}},
     {"type": "function", "function": {"name": "checkpoint", "description": "Create, rollback, or list an AI workspace checkpoint.", "parameters": {"type": "object", "properties": {"op": {"enum": ["create", "rollback", "list"]}, "tag": {"type": "string"}}, "required": ["op"]}}},
     {"type": "function", "function": {"name": "ask_human", "description": "Request an explicit human decision.", "parameters": {"type": "object", "properties": {"question": {"type": "string"}, "options": {"type": "array", "items": {"type": "string"}}}, "required": ["question"]}}},
     {"type": "function", "function": {"name": "net", "description": "Read emulated network interface and route state into /ai/state/net.json. Read-only; does not configure networking.", "parameters": {"type": "object", "properties": {"op": {"enum": ["status"]}}, "required": ["op"]}}},
@@ -198,22 +198,45 @@ class Session:
         if self.tool_count > 5: raise PermissionError("registry operation budget exceeded for this session")
         path = AI_ROOT / "state" / "registry.json"; current = json.loads(path.read_text()) if path.exists() else {}
         name = args["name"]
+        if not isinstance(name, str) or not re.fullmatch(r"[A-Za-z0-9_.-]+", name): raise ValueError("unsafe app name")
         if args["op"] == "query": return {"app": current.get(name)}
         if args["op"] == "remove": current.pop(name, None)
         else:
-            manifest = args.get("manifest")
-            if not isinstance(manifest, dict): raise ValueError("install requires a manifest")
-            required = {"name", "version", "entry", "tests", "tests_pass"}
+            app_dir = (AI_ROOT / "apps" / name).resolve()
+            manifest_path = safe_path(str(app_dir / "manifest.json"), (AI_ROOT / "apps",))
+            if not manifest_path.is_file(): raise FileNotFoundError(f"manifest not found for {name}")
+            manifest = json.loads(manifest_path.read_text())
+            if not isinstance(manifest, dict): raise ValueError("manifest must be an object")
+            required = {"name", "version", "entry", "tests"}
             missing = sorted(required - manifest.keys())
             if missing: raise ValueError("manifest missing: " + ", ".join(missing))
             if manifest["name"] != name: raise ValueError("manifest name does not match registry name")
-            if not manifest["tests_pass"]: raise ValueError("manifest tests_pass must be true")
-            for key in ("entry", "tests"):
-                value = manifest[key]
-                if not isinstance(value, str) or not value.startswith("/ai/") or "/secrets" in value:
-                    raise ValueError(f"manifest {key} must stay inside /ai")
-            if not re.fullmatch(r"[A-Za-z0-9_.-]+", name): raise ValueError("unsafe app name")
-            current[name] = dict(manifest)
+            if not isinstance(manifest["version"], str) or not re.fullmatch(r"\d+\.\d+(?:\.\d+)?", manifest["version"]):
+                raise ValueError("manifest version must be numeric dotted version")
+            entry_path = safe_path(manifest["entry"], (AI_ROOT / "bin",))
+            if not entry_path.is_file(): raise FileNotFoundError("manifest entry is not installed under /ai/bin")
+            tests_path = safe_path(manifest["tests"], (app_dir,))
+            if tests_path != app_dir / "tests" / "run.sh" or not tests_path.is_file():
+                raise PermissionError("manifest tests must be /ai/apps/<name>/tests/run.sh")
+            approval = self.ask_human({"question": f"Approve registering {name} v{manifest['version']}? Entry: {entry_path}; acceptance test: {tests_path}. Tests will run with network disabled."})
+            if not approval.get("approved"):
+                raise PermissionError("app install was not approved by the human")
+            env = {**os.environ, "HOME": "/ai"}
+            env.pop("AIOS_ALLOW_NETWORK", None)
+            started = time.monotonic()
+            try:
+                tests = subprocess.run(["/bin/sh", str(tests_path)], cwd=app_dir, text=True,
+                                       capture_output=True, timeout=300, env=env)
+            except subprocess.TimeoutExpired as exc:
+                self.log.emit("registry_test", app=name, exit="timeout", seconds=round(time.monotonic() - started, 3))
+                raise TimeoutError("app acceptance tests exceeded 300 seconds") from exc
+            self.log.emit("registry_test", app=name, exit=tests.returncode, seconds=round(time.monotonic() - started, 3),
+                          stdout_hash=digest(tests.stdout), stderr_hash=digest(tests.stderr))
+            if tests.returncode != 0:
+                output, _ = trim((tests.stdout + "\n" + tests.stderr).strip())
+                raise RuntimeError(f"app acceptance tests failed (exit {tests.returncode}): {output}")
+            installed = dict(manifest); installed["tests_pass"] = True
+            current[name] = installed
         path.parent.mkdir(parents=True, exist_ok=True); path.write_text(json.dumps(current, indent=2, sort_keys=True) + "\n"); return {"registry": current}
 
     def checkpoint(self, args: dict[str, Any]) -> dict[str, Any]:

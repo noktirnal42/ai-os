@@ -5,7 +5,7 @@ emulator. This is a Python reference harness plus the first Phase 1 utilities.
 
 Guest evidence:
 
-* `make test`: 7 harness tests passed.
+* `make test`: 8 harness tests passed after the gated installer update.
 * `make calc-test`: calculator acceptance passed with `ALL PASS` under Alpine GCC.
 * `calc "2^10"`: printed `1024`.
 * `make fileutils-test`: file utilities acceptance passed with `FILEUTILS ALL PASS`.
@@ -22,6 +22,9 @@ Guest evidence:
 * Registry hardening rejects incomplete manifests, mismatched names, non-`/ai`
   entry/test paths, failed tests, unsafe app names, and sessions over the
   registry operation budget.
+* Registry install reads the manifest from the app workspace, requests human
+  approval before test execution, runs the fixed acceptance script with network
+  disabled, and registers only a successful result.
 * The read-only Phase 2 network probe records `/ai/state/net.json` with schema
   version, interface/route observations, and `emulated: true`; it performs no
   interface mutation or external fetch.

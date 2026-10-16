@@ -57,13 +57,16 @@ surface.
 | `fs_read` | `{path, offset?: int, max_bytes?: int≤65536}` | Read-only file access, sandbox-checked |
 | `fs_write` | `{path, content, mode?: "overwrite"\|"append"}` | Only under `/ai`; refuses host paths |
 | `proc` | `{op: "list"\|"kill", pid?}` | List agent-spawned procs; kill by pid (guarded) |
-| `registry` | `{op: "install"\|"remove"\|"query", name, manifest?}` | Harness-only writer of registry.json |
+| `registry` | `{op: "install"\|"remove"\|"query", name}` | Harness-only registry writer; install loads the on-disk manifest, presents a human approval summary, runs the fixed acceptance script with network disabled (≤300 s), and registers only on success |
 | `checkpoint` | `{op: "create"\|"rollback"\|"list", tag?}` | Filesystem snapshot ops (§6) |
 | `ask_human` | `{question, options?: [..], privileged_cmd?: string}` | Blocks for interactive y/n |
 
 Notes:
 - Model never calls `registry`/`checkpoint`/`ask_human` more than needed — prompt
   discourages; harness enforces rate (≤5 registry ops/session).
+- `registry install` requires `/ai/apps/<name>/manifest.json`, an installed entry
+  under `/ai/bin`, and `/ai/apps/<name>/tests/run.sh`. The manifest is the source
+  of truth; `tests_pass` is set by the harness only after the approved test run.
 - `shell` stdout/stderr **truncated at 4,096 chars each** with a head+tail merge so
   the model sees the beginning (compile errors) and end (summary) — critical for
   small-context quality (doc 02 R6).

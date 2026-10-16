@@ -37,6 +37,11 @@ HEAD request and prints structured status. Both network tools check redirect
 targets against the allowlist. Run `make -C ai selftest` for the aggregate local
 acceptance suite.
 
+App registration is also gated. The model requests `registry install` by app
+name; the harness reads that app's manifest, shows the entry and fixed test
+script to the human, requires approval, runs the test with network disabled,
+and derives `tests_pass` from the test result before updating the registry.
+
 The first Phase 1 application is `apps/calc`. Its acceptance command is
 `/ai/apps/calc/tests/run.sh`; a successful build installs `/ai/bin/calc` and
 `calc "2^10"` prints `1024`.
