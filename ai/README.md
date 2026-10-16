@@ -23,6 +23,10 @@ App registration is manifest-backed: installs require a name, version, `/ai`
 entry and test path, and an explicit green-test result. The registry tool also
 limits mutation volume per session so a model cannot flood the app database.
 
+The first Phase 2 capability is deliberately read-only: `net status` records
+structured interface and route observations in `/ai/state/net.json` with an
+`emulated` marker. It does not configure interfaces or enable network commands.
+
 The first Phase 1 application is `apps/calc`. Its acceptance command is
 `/ai/apps/calc/tests/run.sh`; a successful build installs `/ai/bin/calc` and
 `calc "2^10"` prints `1024`.

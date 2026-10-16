@@ -58,6 +58,18 @@ class HarnessTests(unittest.TestCase):
         unsafe = {"name": "bad", "version": "0.1", "entry": "/etc/thing", "tests": "/ai/apps/bad/tests/run.sh", "tests_pass": True}
         self.assertIn("error", s.call_tool("registry", {"op": "install", "name": "bad", "manifest": unsafe}))
 
+    def test_net_status_is_read_only_and_persisted(self):
+        s = self.session()
+        def fake_run(command, **kwargs):
+            body = [{"ifname": "eth0"}] if command[-1] == "addr" else [{"dst": "default"}]
+            return mock.Mock(returncode=0, stdout=json.dumps(body), stderr="")
+        with mock.patch.object(aios.subprocess, "run", side_effect=fake_run):
+            result = s.call_tool("net", {"op": "status"})
+        self.assertEqual(result["interfaces"], 1)
+        net = json.loads((self.root / "state" / "net.json").read_text())
+        self.assertTrue(net["emulated"])
+        self.assertEqual(net["routes"][0]["dst"], "default")
+
     def test_model_tool_call_executes_and_then_verdicts(self):
         root = self.root
         class FakeClient:
