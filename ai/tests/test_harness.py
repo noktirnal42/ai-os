@@ -58,6 +58,15 @@ class HarnessTests(unittest.TestCase):
         self.assertTrue(any(row["ev"] == "tool_result" for row in rows))
         self.assertTrue(any(row["ev"] == "registry_test" and row["exit"] == 0 for row in rows))
 
+    def test_registry_budget_counts_registry_calls_not_build_tools(self):
+        self.prepare_app("built", "exit 0\n")
+        s = self.session()
+        s.tool_count = 6
+        with mock.patch.object(s, "ask_human", return_value={"approved": True}):
+            result = s.call_tool("registry", {"op": "install", "name": "built"})
+        self.assertNotIn("error", result, result)
+        self.assertEqual(s.registry_ops, 1)
+
     def test_registry_rejects_incomplete_or_unsafe_manifest(self):
         self.prepare_app("bad", "exit 0\n", entry="/etc/thing")
         s = self.session()
@@ -114,6 +123,29 @@ class HarnessTests(unittest.TestCase):
         self.assertEqual(session.run(), 0)
         self.assertEqual((self.root / "apps" / "built.txt").read_text(), "built")
         self.assertEqual(session.client.calls, 2)
+
+    def test_text_tool_fallback_accepts_documented_protocol_and_one_call(self):
+        response = '''Plan:
+```json
+{"tool": "fs_write", "args": {"path": "/ai/apps/first", "content": "one"}}
+```
+{"name": "shell", "arguments": {"cmd": "echo should-wait"}}
+'''
+        call = aios.Session.text_tool_call(response)
+        self.assertEqual(call["function"]["name"], "fs_write")
+        self.assertEqual(json.loads(call["function"]["arguments"]),
+                         {"path": "/ai/apps/first", "content": "one"})
+
+    def test_text_tool_fallback_accepts_local_model_shape_and_rejects_unknown(self):
+        response = '''{"name": "fs_write", "arguments": "{\\"path\\": \\"/ai/apps/a\\", \\"content\\": \\"ok\\"}"}'''
+        call = aios.Session.text_tool_call(response)
+        self.assertEqual(call["function"]["name"], "fs_write")
+        self.assertEqual(json.loads(call["function"]["arguments"]),
+                         {"path": "/ai/apps/a", "content": "ok"})
+        self.assertIsNone(aios.Session.text_tool_call(
+            '{"name":"invented_tool","arguments":{}}'))
+        self.assertIsNone(aios.Session.text_tool_call(
+            'Example only: {"name":"fs_write","arguments":{}}'))
 
 
 if __name__ == "__main__": unittest.main()
