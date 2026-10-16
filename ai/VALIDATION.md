@@ -19,6 +19,9 @@ Guest evidence:
 * Registry installs were performed through the harness registry tool. `/ai/state/registry.json`
   contains `calc`, `fileutils`, `jobs`, `aed`, and `ask`, each with `tests_pass: true`
   and manifest paths.
+* Registry hardening rejects incomplete manifests, mismatched names, non-`/ai`
+  entry/test paths, failed tests, unsafe app names, and sessions over the
+  registry operation budget.
 * The harness fake-model test drove a real `fs_write` tool call, verified the file
   mutation, then completed the session with an assistant message.
 * Live inference through the host Ollama OpenAI-compatible endpoint succeeded:

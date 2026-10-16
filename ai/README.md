@@ -19,6 +19,10 @@ documented `/ai` subtrees, `/ai/secrets` is inaccessible, shell commands run
 without network access by default, and every tool call/result is appended to a
 JSONL session log.
 
+App registration is manifest-backed: installs require a name, version, `/ai`
+entry and test path, and an explicit green-test result. The registry tool also
+limits mutation volume per session so a model cannot flood the app database.
+
 The first Phase 1 application is `apps/calc`. Its acceptance command is
 `/ai/apps/calc/tests/run.sh`; a successful build installs `/ai/bin/calc` and
 `calc "2^10"` prints `1024`.
