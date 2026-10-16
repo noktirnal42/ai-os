@@ -32,6 +32,11 @@ The bounded `net` app adds `a-fetch`, which requires the explicit
 It accepts only HTTP(S), rejects embedded credentials, caps responses at 64 KiB,
 and limits requests to ten seconds.
 
+`a-netcheck https://allowlisted-host/path` performs a gated DNS lookup and HTTP
+HEAD request and prints structured status. Both network tools check redirect
+targets against the allowlist. Run `make -C ai selftest` for the aggregate local
+acceptance suite.
+
 The first Phase 1 application is `apps/calc`. Its acceptance command is
 `/ai/apps/calc/tests/run.sh`; a successful build installs `/ai/bin/calc` and
 `calc "2^10"` prints `1024`.

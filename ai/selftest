@@ -1,0 +1,20 @@
+#!/bin/sh
+set -eu
+ROOT=$(CDPATH= cd -- "$(dirname "$0")" && pwd)
+cd "$ROOT"
+if [ -z "${AIOS_ROOT:-}" ]; then
+    AIOS_ROOT=$(mktemp -d)
+    export AIOS_ROOT
+    trap 'rm -rf "$AIOS_ROOT"' EXIT HUP INT TERM
+fi
+for target in test calc-test fileutils-test jobs-test aed-test ask-test net-test; do
+    printf '\n== %s ==\n' "$target"
+    make "$target"
+done
+if command -v ip >/dev/null 2>&1; then
+    printf '\n== net-probe ==\n'
+    make net-probe
+else
+    printf '\n== net-probe ==\nSKIP (guest-only interface probe; run in Alpine VM)\n'
+fi
+printf '\nAI OS selftest: PASS\n'
