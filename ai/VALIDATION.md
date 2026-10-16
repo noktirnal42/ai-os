@@ -25,6 +25,15 @@ Guest evidence:
 * Registry install reads the manifest from the app workspace, requests human
   approval before test execution, runs the fixed acceptance script with network
   disabled, and registers only a successful result.
+* Live self-build trial (Alpine guest, Ollama `qwen2.5-coder:3b` via
+  `http://10.0.2.2:11434`): AI OS used `fs_write` to create the `hello-self`
+  C source, acceptance script, and manifest. The guest compiled it with
+  `gcc -Wall -Wextra -Werror`; the test printed `HELLO_SELF_PASS`, and the app
+  printed `HELLO_FROM_AI_OS`. AI OS requested `registry install`, the human gate
+  was approved, and the harness acceptance run passed with `tests_pass: true`.
+  This trial needed several focused prompts after the first build attempt
+  stopped with incomplete files; autonomous long-horizon completion is still
+  unproven.
 * The read-only Phase 2 network probe records `/ai/state/net.json` with schema
   version, interface/route observations, and `emulated: true`; it performs no
   interface mutation or external fetch.
