@@ -58,4 +58,21 @@ host_pubkey() {
   ssh-keygen -y -P "" -f "$SSH_KEY_FILE"
 }
 
-model_url_for_guest() { print -r -- "${AIOS_MODEL_URL:-http://10.0.2.2:${MODEL_PORT}}"; }
+model_url_for_guest() {
+  if [[ -n "${AIOS_MODEL_URL:-}" ]]; then
+    print -r -- "$AIOS_MODEL_URL"
+  elif curl -fsS -m 2 "http://127.0.0.1:${OLLAMA_PORT}/api/version" >/dev/null 2>&1; then
+    print -r -- "http://10.0.2.2:${OLLAMA_PORT}"
+  else
+    print -r -- "http://10.0.2.2:${MODEL_PORT}"
+  fi
+}
+model_name_for_guest() {
+  if [[ -n "${AIOS_MODEL:-}" ]]; then
+    print -r -- "$AIOS_MODEL"
+  elif curl -fsS -m 2 "http://127.0.0.1:${OLLAMA_PORT}/api/version" >/dev/null 2>&1; then
+    print -r -- "$OLLAMA_MODEL"
+  else
+    print -r -- "local"
+  fi
+}

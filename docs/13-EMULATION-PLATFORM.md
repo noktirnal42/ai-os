@@ -49,9 +49,10 @@ agent-driven, repeatable builds.
 
 **Key architectural decision — split-brain model serving (EM-1):**
 
-In the emulator, the model runtime runs **on the macOS host** (Metal gives us ~2–4×
-the VM's CPU-only speed), and the VM's harness reaches it at `http://10.0.2.2:8080`
-(QEMU slirp always maps host → 10.0.2.2). On bare-metal targets the model runs
+In the emulator, the model runtime runs **on the macOS host** and the VM's
+harness reaches it through the QEMU gateway `10.0.2.2`. The guided launcher
+prefers an available Ollama endpoint on port 11434; the optional llama-server
+configuration remains on port 8080. On bare-metal targets the model runs
 *inside* the machine and the endpoint is `127.0.0.1:8080`.
 
 Therefore: **the model endpoint is configuration, never an assumption**
@@ -114,21 +115,31 @@ and the workflow identical across Claude Code / Codex / Cursor / opencode.
 
 - `user-data` (cloud-init): hostname `ai-os-emu`, user `ai` + host pubkey, packages
   (EM-1 table), `growpart`/resizefs, motd banner, runcmd writes `/ai/` skeleton
-  + `/etc/profile.d/aios.sh` exporting `AIOS_MODEL_URL=http://10.0.2.2:8080`,
+  + `/etc/profile.d/aios.sh` exporting the selected `AIOS_MODEL_URL`, model name,
+    and a 300-second inference timeout,
   done-marker file.
 - `meta-data`: instance id.
 - Model endpoint override file: user-data renders from `vm.conf` so switching
   endpoint = edit one line.
 
-### EM-5 Optional host model server (`emulation/model-host.sh`)
+### EM-5 Host model service and guided first run
 
-- Uses installed `llama-server` and an explicitly selected GGUF (or the configured
-  `MODEL_REPO_FILE` in `emulation/models/`). No model download runs automatically.
-- Binds `127.0.0.1:8080`; QEMU user networking lets the guest reach the host at
-  `10.0.2.2`. Set `AIOS_MODEL_URL` before creation to provision another endpoint.
-- Real inference and pinned model acquisition are deferred until AI OS work.
-  A health response establishes reachability, not model quality or identity.
+- `emulation/start.sh` checks local Ollama on `127.0.0.1:11434` first, then the
+  optional llama-server on `127.0.0.1:8080`. It selects an installed local model,
+  prepares/boots the VM if needed, syncs the console, and opens the TUI.
+- `emulation/model-host.sh` still runs an explicitly selected GGUF through
+  `llama-server` on port 8080. No Ollama install or model-weight download runs
+  automatically. Missing model instructions are printed before starting the UI.
+- The running console receives the model URL/name explicitly, so an older VM seed
+  pointing at port 8080 does not silently block the guided Ollama path.
+- The guided live-model smoke test establishes protocol behavior, not model
+  quality. A health response establishes reachability, not identity.
 - The VM lifecycle and C build/test smoke checks do not require a model server.
+
+The TUI supports Chat mode (one model answer without tools) and Do mode (a
+bounded 32-tool, 15-minute task), displays session audit events and elapsed model
+waits, and leaves the `/ai` and network gates unchanged. See the operator steps
+and interaction contract in [the first-run guide](15-FIRST-RUN-AND-TUI.md).
 
 ### EM-6 Snapshots & artifacts
 
@@ -164,7 +175,8 @@ emulation/
   vm.sh                EM-2 CLI (the contract)
   doctor.sh            pre-flight checks
   download-image.sh    Alpine aarch64 cloud image fetch + SHA verify
-  model-host.sh        EM-5 host model server launcher
+  model-host.sh        optional llama.cpp host server
+  start.sh             first-run Ollama/VM/TUI setup
   provision/
     user-data          cloud-init (EM-4)
     meta-data

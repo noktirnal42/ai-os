@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#07111f">
-  <meta name="description" content="AI OS is an emulator-first operating system that grows with its agent.">
+  <meta name="description" content="Start AI OS in one command. Chat with a local model or switch to Do mode and watch bounded tasks build inside an emulator.">
   <meta property="og:title" content="AI OS — Build the machine with the machine">
   <meta property="og:description" content="A controlled experiment in machine-built software. Emulator-first, observable, checkpointable.">
   <meta property="og:image" content="assets/ai-os-mark.svg">
@@ -20,7 +20,7 @@
   <header class="nav shell">
     <a class="brand" href="#top" aria-label="AI OS home"><span class="brand-orbit">✦</span><span>AI<span class="muted">/</span>OS</span></a>
     <nav aria-label="Primary navigation">
-      <a href="#system">System</a><a href="#evidence">Evidence</a><a href="#roadmap">Roadmap</a>
+      <a href="#start">Quick start</a><a href="#system">System</a><a href="#roadmap">Roadmap</a>
       <a class="nav-cta" href="https://github.com/noktirnal42/ai-os">View on GitHub <span>↗</span></a>
     </nav>
   </header>
@@ -28,19 +28,25 @@
   <main id="top">
     <section class="hero shell">
       <div class="hero-copy">
-        <p class="eyebrow"><span class="pulse"></span> PHASE 1 IS LIVE IN THE EMULATOR</p>
+        <p class="eyebrow"><span class="pulse"></span> YOUR FIRST SESSION, ONE COMMAND AWAY</p>
         <h1>Build the<br><em>machine</em> with<br>the machine.</h1>
-        <p class="lede">AI OS is an emulator-first operating system that lets an agent build useful software inside a bounded, observable world.</p>
-        <div class="hero-actions"><a class="button primary" href="https://github.com/noktirnal42/ai-os#quickstart">Run the experiment <span>→</span></a><a class="text-link" href="#system">Explore the system <span>↓</span></a></div>
+        <p class="lede">A local-first AI operating system you can actually talk to. Ask a question, switch to Do, and watch it work inside a bounded emulator.</p>
+        <div class="hero-actions"><a class="button primary" href="#start">Start AI OS <span>→</span></a><a class="text-link" href="#system">Explore the system <span>↓</span></a></div>
       </div>
-      <div class="hero-visual" aria-label="AI OS system visualization">
-        <div class="orbit orbit-a"></div><div class="orbit orbit-b"></div><div class="core"><span>AI</span><small>OS</small></div>
-        <div class="node node-a"><b>01</b><span>intent</span></div><div class="node node-b"><b>02</b><span>agent</span></div><div class="node node-c"><b>03</b><span>tools</span></div><div class="node node-d"><b>04</b><span>proof</span></div>
-        <div class="visual-caption">HUMAN INTENT <span>→</span> VERIFIED CAPABILITY</div>
-      </div>
+      <div class="hero-visual console-visual"><img src="assets/console-preview.svg" alt="Illustration of the AI OS terminal console showing Chat and Do modes, tool progress, and a local model status"></div>
     </section>
 
-    <section class="ticker"><div class="ticker-inner"><span>ALPINE AARCH64</span><i>✦</i><span>QEMU / HVF</span><i>✦</i><span>OPENAI-COMPATIBLE</span><i>✦</i><span>HUMAN IN THE LOOP</span><i>✦</i><span>ALPINE AARCH64</span><i>✦</i><span>QEMU / HVF</span></div></section>
+    <section class="ticker"><div class="ticker-inner"><span>LOCAL MODEL</span><i>✦</i><span>CHAT OR BUILD</span><i>✦</i><span>VISIBLE PROGRESS</span><i>✦</i><span>HUMAN IN CONTROL</span><i>✦</i><span>LOCAL MODEL</span><i>✦</i><span>CHAT OR BUILD</span></div></section>
+
+    <section class="quickstart shell" id="start">
+      <div class="quickstart-heading"><p class="eyebrow">START HERE / 01 MINUTE</p><h2>From a blank terminal<br>to a working session.</h2><p>AI OS runs in an isolated Alpine VM. Your model stays on your Mac.</p></div>
+      <div class="quickstart-steps">
+        <div class="quickstep"><span>01</span><div><strong>Install the host tools</strong><p>On Apple Silicon Mac, install QEMU and Ollama, then choose a local model.</p><code>brew install qemu ollama<br>ollama pull qwen2.5-coder:3b</code></div></div>
+        <div class="quickstep"><span>02</span><div><strong>Launch the guided setup</strong><p>In Terminal, from the AI OS checkout:</p><code>./emulation/start.sh</code></div></div>
+        <div class="quickstep"><span>03</span><div><strong>Chat, then put it to work</strong><p>Ask in Chat. Press F2 for Do mode. Follow visible progress and review the result.</p><a href="https://github.com/noktirnal42/ai-os/blob/main/docs/15-FIRST-RUN-AND-TUI.md">Read the first-run guide ↗</a></div></div>
+      </div>
+      <p class="quickstart-note">First launch verifies and downloads the guest OS image. Model weights are never downloaded automatically. Requires macOS, Apple Silicon, QEMU, Ollama, and a local model.</p>
+    </section>
 
     <section class="section shell" id="system">
       <div class="section-intro"><p class="eyebrow">01 / THE SYSTEM</p><h2>A small world.<br><span>A serious question.</span></h2></div>
@@ -50,11 +56,11 @@
     </section>
 
     <section class="section dark-section" id="evidence"><div class="shell"><div class="section-intro"><p class="eyebrow">02 / THE EVIDENCE</p><h2>Claims are cheap.<br><span>Proof is the product.</span></h2></div>
-      <div class="stats"><div class="stat"><strong>5</strong><span>harness tests</span></div><div class="stat"><strong>5</strong><span>native-style apps</span></div><div class="stat"><strong>6×</strong><span>repeatable eval tasks</span></div><div class="stat"><strong>0</strong><span>host paths exposed</span></div></div>
-      <div class="evidence-grid"><article><span class="card-index">/ 01</span><h3>Emulator first</h3><p>Alpine aarch64 on QEMU/HVF. One lifecycle interface. Snapshots at every meaningful milestone.</p><a href="https://github.com/noktirnal42/ai-os/blob/main/docs/13-EMULATION-PLATFORM.md">Platform contract ↗</a></article><article><span class="card-index">/ 02</span><h3>Boundaries by default</h3><p>Path policy, secret denial, network gates, time limits, output caps, and explicit human approval.</p><a href="https://github.com/noktirnal42/ai-os/blob/main/docs/09-SECURITY-MODEL.md">Security model ↗</a></article><article><span class="card-index">/ 03</span><h3>Live, then honest</h3><p>OpenAI-compatible inference and model-generated tool calls are tested in the guest, with provider limits recorded.</p><a href="https://github.com/noktirnal42/ai-os/blob/main/docs/14-LIVE-MODEL.md">Live model contract ↗</a></article></div>
+      <div class="stats"><div class="stat"><strong>CHAT</strong><span>ask without tools</span></div><div class="stat"><strong>DO</strong><span>bounded task mode</span></div><div class="stat"><strong>LIVE</strong><span>progress while it works</span></div><div class="stat"><strong>PROOF</strong><span>tests and audit trail</span></div></div>
+      <div class="evidence-grid"><article><span class="card-index">/ 01</span><h3>Emulator first</h3><p>Alpine aarch64 on QEMU/HVF. One lifecycle interface. Snapshots at every meaningful milestone.</p><a href="https://github.com/noktirnal42/ai-os/blob/main/docs/13-EMULATION-PLATFORM.md">Platform contract ↗</a></article><article><span class="card-index">/ 02</span><h3>Boundaries by default</h3><p>Workspace policy, secret denial, network gates, time limits, output caps, and explicit human approval.</p><a href="https://github.com/noktirnal42/ai-os/blob/main/docs/09-SECURITY-MODEL.md">Security model ↗</a></article><article><span class="card-index">/ 03</span><h3>Know what it’s doing</h3><p>The console shows when AI OS is waiting on the model, which kind of tool it is using, and how each task ended.</p><a href="https://github.com/noktirnal42/ai-os/blob/main/docs/15-FIRST-RUN-AND-TUI.md">Console guide ↗</a></article></div>
     </div></section>
 
-    <section class="section shell" id="roadmap"><div class="section-intro"><p class="eyebrow">03 / THE ROAD AHEAD</p><h2>Grow the system.<br><span>Keep the receipts.</span></h2></div><div class="roadmap"><div class="road active"><div class="road-marker">01</div><div><span class="road-status">CURRENT / VERIFIED</span><h3>Bootstrap</h3><p>Harness, core utilities, checkpoints, evals, live model loop.</p></div></div><div class="road"><div class="road-marker">02</div><div><span class="road-status">NEXT / IN BUILD</span><h3>Capabilities</h3><p>Richer supervision, manifests, and model-driven app installation.</p></div></div><div class="road"><div class="road-marker">03</div><div><span class="road-status">LATER / GATED</span><h3>Connectivity</h3><p>Networking and cloud bridge with provenance, cost controls, and approval.</p></div></div></div></section>
+    <section class="section shell" id="roadmap"><div class="section-intro"><p class="eyebrow">03 / THE ROAD AHEAD</p><h2>Grow the system.<br><span>Keep the receipts.</span></h2></div><div class="roadmap"><div class="road active"><div class="road-marker">01</div><div><span class="road-status">CURRENT / IN THE EMULATOR</span><h3>Beginner console</h3><p>Guided first run, local-model chat, bounded Do mode, visible progress, tests and audit trails.</p></div></div><div class="road"><div class="road-marker">02</div><div><span class="road-status">NEXT / BUILDING</span><h3>Helpful system tools</h3><p>Clear task plans, app discovery, approvals, recovery, and verified installation in one place.</p></div></div><div class="road"><div class="road-marker">03</div><div><span class="road-status">LATER / GATED</span><h3>Desktop and hardware</h3><p>Only after the emulator proves the capabilities, explore a graphical shell and real hardware.</p></div></div></div></section>
 
     <section class="join shell"><div><p class="eyebrow">OPEN SOURCE, CAREFULLY</p><h2>Bring a sharp question.</h2><p>Good contributions make AI OS easier to understand and harder to accidentally widen.</p></div><a class="button primary" href="https://github.com/noktirnal42/ai-os/blob/main/CONTRIBUTING.md">Join the build <span>↗</span></a></section>
   </main>

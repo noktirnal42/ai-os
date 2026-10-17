@@ -84,3 +84,19 @@ emulation/tests/smoke.sh
 Only `emulation/vm.sh` was used to operate guests, QEMU, images, and checkpoints.
 Do not remove backing images or private keys, delete checkpoints, destroy guests,
 or roll back past a tagged milestone without the required human approval.
+
+## Guided AI OS console — 2026-10-16
+
+The above records the earlier platform-only validation. The subsequent AI OS
+first-run integration was verified separately:
+
+- `./emulation/start.sh` detected host Ollama on port 11434, selected the
+  installed `qwen2.5-coder:3b`, persisted its endpoint/model/timeout in the guest,
+  synced the current harness and TUI, and entered the interactive console.
+- The guest kept its original seed and profile; the launcher explicitly passed
+  the Ollama endpoint for the TUI and persisted it under `/ai/state/model.json`.
+- `emulation/vm.sh status` reports the guest profile's legacy port 8080 plus the
+  reachable Ollama endpoint. Run `emulation/start.sh` to apply the selected model
+  configuration to the console.
+- The emulator remains running at the user's request for interaction. Snapshot
+  creation was deferred because the documented workflow requires stopping it.

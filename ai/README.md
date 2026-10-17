@@ -4,15 +4,32 @@ This is the first AI OS slice built inside the Alpine aarch64 emulator. It is a
 small Python reference harness for Phase 0/1 work; the target C implementation
 can replace it later without changing the tool contract.
 
-The harness has three entry points:
+The harness has four entry points:
 
 * `aios ask "question"` sends one model request without tools.
 * `aios run "goal"` starts a bounded tool session.
 * `aiosd` runs the same session engine as a foreground daemon-compatible command.
+* `aios tui` opens a full-screen console with Chat and Do modes, live progress,
+  model configuration status, and clear completion/error feedback.
 
 Set `AIOS_MODEL_URL` to an OpenAI-compatible server. A deterministic `--offline`
 mode is provided for emulator and regression tests; it never pretends to have
 performed model inference.
+
+For first use on the Mac, run `./emulation/start.sh` from a real Terminal. It
+checks for Ollama, prefers the installed `qwen2.5-coder:3b` model (or another
+installed local model), boots/provisions the emulator if needed, syncs the
+console, and starts `aios tui`. It does not install Ollama or download model
+weights without an explicit command. In the TUI, type questions in Chat mode;
+press F2 to switch to Do mode for bounded tasks. F1 opens the in-app help.
+The selected endpoint/model are saved without credentials at
+`/ai/state/model.json`, so later guest-shell sessions keep the same setup.
+
+The interactive Do loop displays progress from the existing session JSONL
+audit trail. Model requests default to a 300-second timeout, configurable with
+`AIOS_MODEL_TIMEOUT` (10–600 seconds); a task can therefore show a long model
+wait before it has a tool event. Tool calls and results remain auditable under
+`/ai/state/sessions/`.
 
 All session state lives below `/ai/state`. Model writes are restricted to the
 documented `/ai` subtrees, `/ai/secrets` is inaccessible, shell commands run

@@ -5,7 +5,7 @@ emulator. This is a Python reference harness plus the first Phase 1 utilities.
 
 Guest evidence:
 
-* `make test`: 14 harness tests pass, including JSON tool-call fallback coverage
+* `make test`: 20 harness tests pass, including TUI input/progress/config coverage
   for the documented and observed local-model formats and registry budget
   coverage after multi-step builds.
 * `make calc-test`: calculator acceptance passed with `ALL PASS` under Alpine GCC.
@@ -121,3 +121,25 @@ The harness accepts both native OpenAI `tool_calls` and the fenced JSON tool-cal
 format emitted by this model. Model behavior is still bounded by the session's
 tool and time budgets; a model can emit an invalid follow-up tool request, which
 is logged as a tool error without escaping the workspace policy.
+
+## Beginner console update — 2026-10-16
+
+* `./emulation/start.sh` detected host Ollama, selected the installed
+  `qwen2.5-coder:3b`, wrote `/ai/state/model.json`, synced the console into the
+  running Alpine guest, and opened the TUI.
+* TUI Chat mode returned exactly `AIOS_CHAT_OK`. First response took about one
+  minute while Ollama loaded the model; elapsed time was visible. The default
+  model request limit is now 300 seconds (configurable from 10 to 600).
+* TUI Do mode invoked a shell tool, printed `AIOS_DO_FINAL_OK`, and displayed
+  normalized arguments, command start, and exit status 0. The harness marked the
+  no-acceptance-command session partial, and the UI accurately said the tool ran
+  but task completion was not verified.
+* The live run exposed and fixed two curses input bugs (text keycodes and Enter
+  representation), a short-model nested shell-argument shape, and fast-session
+  audit events being missed at process exit.
+* Host verification: 20 harness tests, `make -C ai selftest`, Phase 1 eval,
+  emulator push/build/run/exit-propagation smoke test, shell syntax checks, and
+  marketing HTML/SVG parse all passed. `vm.sh status` reports Ollama reachable.
+* The VM remains running so the user's existing and new Terminal sessions are
+  available. No snapshot was taken because the VM checkpoint workflow requires
+  stopping the guest.

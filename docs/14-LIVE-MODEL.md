@@ -22,6 +22,17 @@ The planned dedicated model host remains `http://10.0.2.2:8080`; Ollama on
 `11434` is the current development provider. Provider choice is explicit so
 model availability is never mistaken for an emulator guarantee.
 
+For the guided beginner flow, run `./emulation/start.sh` from macOS Terminal.
+It prefers a running host Ollama server, checks its installed local models,
+chooses `qwen2.5-coder:3b` when available, readies the guest, and launches the
+interactive TUI. If there is no local model, it tells the user how to install
+one and exits without downloading weights automatically. See
+[`15-FIRST-RUN-AND-TUI.md`](15-FIRST-RUN-AND-TUI.md).
+
+The TUI makes the request wait visible and defaults each HTTP model request to
+300 seconds (`AIOS_MODEL_TIMEOUT`, bounded to 10–600 seconds). This is a
+latency allowance, not a guarantee that an endpoint or model will answer.
+
 ## Boundaries
 
 - The model cannot access the host filesystem directly.

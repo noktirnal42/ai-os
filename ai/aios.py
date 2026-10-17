@@ -59,6 +59,27 @@ def digest(value: Any) -> str:
     return hashlib.sha256(json.dumps(value, sort_keys=True).encode()).hexdigest()[:16]
 
 
+def load_model_config() -> None:
+    """Apply non-secret first-run settings, while explicit env always wins."""
+    path = AI_ROOT / "state" / "model.json"
+    if not path.is_file():
+        return
+    try:
+        config = json.loads(path.read_text(encoding="utf-8"))
+        if not isinstance(config, dict):
+            raise ValueError("expected a JSON object")
+        values = {
+            "AIOS_MODEL_URL": config.get("url"),
+            "AIOS_MODEL": config.get("model"),
+            "AIOS_MODEL_TIMEOUT": config.get("timeout_seconds"),
+        }
+        for key, value in values.items():
+            if value is not None and not os.environ.get(key):
+                os.environ[key] = str(value)
+    except (OSError, ValueError, TypeError) as exc:
+        print(f"AI OS model config error at {path}: {exc}", file=sys.stderr)
+
+
 class AuditLog:
     def __init__(self, path: pathlib.Path):
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -91,7 +112,8 @@ class ModelClient:
             headers={"Content-Type": "application/json"},
         )
         try:
-            with urllib.request.urlopen(req, timeout=120) as resp:
+            timeout = max(10, min(int(os.environ.get("AIOS_MODEL_TIMEOUT", "300")), 600))
+            with urllib.request.urlopen(req, timeout=timeout) as resp:
                 return json.load(resp)
         except (urllib.error.URLError, TimeoutError, json.JSONDecodeError) as exc:
             raise ModelError(str(exc)) from exc
@@ -138,8 +160,9 @@ class Session:
         if name == "shell" and isinstance(args, dict) and isinstance(args.get("cmd"), dict):
             nested = args["cmd"]
             if (
-                set(nested).issubset({"cmd", "timeout_s", "workdir"})
+                set(nested).issubset({"type", "cmd", "timeout_s", "workdir"})
                 and isinstance(nested.get("cmd"), str)
+                and nested.get("type", "string") == "string"
                 and ("timeout_s" not in nested or isinstance(nested["timeout_s"], int))
                 and ("workdir" not in nested or isinstance(nested["workdir"], str))
             ):
@@ -401,8 +424,13 @@ def main() -> int:
     sub = parser.add_subparsers(dest="command", required=True)
     ask = sub.add_parser("ask"); ask.add_argument("prompt"); ask.add_argument("--offline", action="store_true")
     run = sub.add_parser("run"); run.add_argument("goal"); run.add_argument("--offline", action="store_true"); run.add_argument("--max-tools", type=int, default=200); run.add_argument("--max-seconds", type=int, default=2700); run.add_argument("--require-command", action="append", default=[])
+    sub.add_parser("tui", help="open the beginner-friendly interactive console")
     args = parser.parse_args()
     AI_ROOT.mkdir(parents=True, exist_ok=True)
+    load_model_config()
+    if args.command == "tui":
+        from aios_tui import main as tui_main
+        return tui_main()
     if args.command == "ask":
         response = ModelClient(os.environ.get("AIOS_MODEL_URL", "http://10.0.2.2:8080"), args.offline).chat([{"role": "user", "content": args.prompt}]); print(response.get("choices", [{}])[0].get("message", {}).get("content", "")); return 0
     return Session(args.goal, ModelClient(os.environ.get("AIOS_MODEL_URL", "http://10.0.2.2:8080"), args.offline), args.max_tools, args.max_seconds, required_commands=tuple(args.require_command)).run()

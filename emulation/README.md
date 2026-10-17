@@ -1,13 +1,31 @@
 # Emulation development platform
 
-Current scope is **only the platform** used to build, run, and test AI OS later.
-No AI OS harness, application, or autonomous bootstrap is implemented here.
+This platform boots and runs AI OS inside an Alpine aarch64 virtual machine on
+the host Mac. The beginner first-run launcher is `./emulation/start.sh`; the
+lower-level lifecycle remains `emulation/vm.sh`.
 
 Use `emulation/vm.sh` for every VM operation. Run commands from the repository root.
 The host is Apple Silicon macOS; the guest is Alpine aarch64/musl with QEMU/HVF,
 4 CPUs, 4 GiB RAM, a 20 GiB overlay, passwordless sudo for `ai`, and workspace `/ai`.
 
 ## Setup and operation
+
+For the guided setup, install QEMU and Ollama, install a local Ollama model, then
+run the launcher in macOS Terminal:
+
+```sh
+brew install qemu ollama
+ollama pull qwen2.5-coder:3b
+./emulation/start.sh
+```
+
+The launcher detects Ollama, picks the recommended model when present (otherwise
+the first installed local model), prepares and boots the VM if necessary, syncs
+the current AI OS console, and opens its TUI. It does not install Ollama or
+download model weights automatically. If the Ollama CLI exists but its service
+is stopped, the launcher starts that local service. See [the first-run guide](../docs/15-FIRST-RUN-AND-TUI.md).
+
+For lifecycle control and debugging:
 
 ```sh
 brew install qemu
@@ -61,10 +79,12 @@ use push/exec for normal development. `create` refuses an existing disk.
 
 ## Configuration and optional model runtime
 
-Defaults in `vm.conf` accept environment overrides. Guest user, hostname, and
-`AIOS_MODEL_URL` are rendered into the seed at creation (or explicit reseeding).
-The default endpoint is `http://10.0.2.2:8080`; the guest reaches the host loopback
-through QEMU user networking. SSH is forwarded only on `127.0.0.1:2222`.
+Defaults in `vm.conf` accept environment overrides. Guest user, hostname,
+`AIOS_MODEL_URL`, and `AIOS_MODEL` are rendered into the seed at creation (or
+explicit reseeding). The launcher prefers host Ollama on port 11434 when
+available; otherwise the legacy llama-server endpoint is `http://10.0.2.2:8080`.
+The guest reaches host loopback services through QEMU user networking. SSH is
+forwarded only on `127.0.0.1:2222`.
 
 A model is unnecessary for platform checks. For future inference work, install
 `llama.cpp`, acquire and independently verify a GGUF, set `MODEL_FILE`, and run

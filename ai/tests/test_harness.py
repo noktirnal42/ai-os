@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import json
+import curses
 import os
 import pathlib
 import tempfile
@@ -9,9 +10,47 @@ from unittest import mock
 import sys
 sys.path.insert(0, str(pathlib.Path(__file__).parents[1]))
 import aios
+import aios_tui
 
 
 class HarnessTests(unittest.TestCase):
+    def test_tui_progress_labels_audit_events_without_echoing_tool_args(self):
+        self.assertEqual(aios_tui.event_message({"ev": "tool_call", "tool": "shell", "args": {"cmd": "secret"}}), "Running a command")
+        self.assertEqual(aios_tui.event_message({"ev": "tool_result", "command_exit": 0}), "Command finished (exit 0)")
+        self.assertEqual(aios_tui.event_message({"ev": "verdict", "kind": "failed", "error": "timed out"}), "Task failed: timed out")
+
+    def test_tui_chat_and_do_modes_have_separate_bounded_commands(self):
+        chat = aios_tui.command_for("chat", "hello")
+        do = aios_tui.command_for("do", "build a tool")
+        self.assertEqual(chat[-2:], ["ask", "hello"])
+        self.assertIn("--max-tools", do)
+        self.assertIn("--max-seconds", do)
+        self.assertEqual(do[-1], "build a tool")
+
+    def test_tui_accepts_curses_wide_character_input_not_control_keys(self):
+        self.assertEqual(aios_tui.input_character("a"), "a")
+        self.assertEqual(aios_tui.input_character("?"), "?")
+        self.assertIsNone(aios_tui.input_character(97))
+        self.assertIsNone(aios_tui.input_character(curses.KEY_UP))
+        self.assertTrue(aios_tui.is_enter_key("\n"))
+        self.assertTrue(aios_tui.is_enter_key(13))
+        self.assertTrue(aios_tui.is_backspace_key("\x7f"))
+        partial = {"kind": "partial"}
+        self.assertIn("without taking action", aios_tui.completion_status("do", 0, partial, False))
+        self.assertIn("used tools", aios_tui.completion_status("do", 0, partial, True))
+        self.assertIn("Waiting for qwen", aios_tui.progress_status("model", "", 12, "qwen2.5-coder:3b", 300))
+        self.assertIn("Running a command", aios_tui.progress_status("tool", "Running a command", 4, "qwen", 300))
+
+    def test_model_config_persists_defaults_but_environment_overrides_it(self):
+        (self.root / "state" / "model.json").write_text(json.dumps({
+            "url": "http://10.0.2.2:11434", "model": "qwen2.5-coder:3b", "timeout_seconds": 300,
+        }))
+        with mock.patch.dict(os.environ, {"AIOS_MODEL_URL": "", "AIOS_MODEL": "", "AIOS_MODEL_TIMEOUT": ""}, clear=False):
+            aios.load_model_config()
+            self.assertEqual(os.environ["AIOS_MODEL_URL"], "http://10.0.2.2:11434")
+            self.assertEqual(os.environ["AIOS_MODEL"], "qwen2.5-coder:3b")
+            self.assertEqual(os.environ["AIOS_MODEL_TIMEOUT"], "300")
+
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
         self.root = pathlib.Path(self.tmp.name).resolve()
@@ -56,6 +95,12 @@ class HarnessTests(unittest.TestCase):
         self.assertEqual(result["stdout"], "NESTED_OK")
         events = [json.loads(line) for line in s.log.path.read_text().splitlines()]
         self.assertTrue(any(row["ev"] == "tool_args_normalized" for row in events))
+
+    def test_shell_schema_object_from_small_models_is_normalized(self):
+        s = self.session()
+        result = s.call_tool("shell", {"cmd": {"type": "string", "cmd": "printf MODEL_TOOL_OK", "workdir": str(self.root)}})
+        self.assertEqual(result["exit"], 0)
+        self.assertEqual(result["stdout"], "MODEL_TOOL_OK")
 
     def test_checkpoint_round_trip(self):
         s = self.session(); (self.root / "apps" / "marker").write_text("before")

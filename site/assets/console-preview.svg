@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="700" viewBox="0 0 1024 700" fill="none">
+  <defs>
+    <linearGradient id="bg" x1="60" y1="30" x2="980" y2="690" gradientUnits="userSpaceOnUse"><stop stop-color="#14213A"/><stop offset="1" stop-color="#080E1B"/></linearGradient>
+    <linearGradient id="glow" x1="180" y1="100" x2="820" y2="600" gradientUnits="userSpaceOnUse"><stop stop-color="#4DE1FF" stop-opacity=".19"/><stop offset="1" stop-color="#9B6CFF" stop-opacity=".04"/></linearGradient>
+    <filter id="shadow" x="0" y="0" width="1024" height="700" filterUnits="userSpaceOnUse"><feGaussianBlur stdDeviation="24"/></filter>
+  </defs>
+  <ellipse cx="512" cy="350" rx="400" ry="280" fill="#59DFFF" fill-opacity=".11" filter="url(#shadow)"/>
+  <rect x="39" y="40" width="946" height="620" rx="24" fill="url(#bg)" stroke="#40536C" stroke-width="2"/>
+  <rect x="40" y="41" width="944" height="618" rx="23" fill="url(#glow)"/>
+  <path d="M40 103h944" stroke="#33445A" stroke-width="2"/>
+  <circle cx="76" cy="73" r="8" fill="#FF6D73"/><circle cx="104" cy="73" r="8" fill="#FFC45E"/><circle cx="132" cy="73" r="8" fill="#B7F36B"/>
+  <text x="512" y="79" fill="#A9BDD1" text-anchor="middle" font-family="Menlo,monospace" font-size="16" letter-spacing="4">AI OS / INTERACTIVE CONSOLE</text>
+  <text x="76" y="143" fill="#64E4FF" font-family="Menlo,monospace" font-size="15" letter-spacing="2">CHAT · F2 SWITCHES TO DO</text>
+  <text x="76" y="176" fill="#91A6BC" font-family="Menlo,monospace" font-size="14">model: qwen2.5-coder:3b</text>
+  <text x="76" y="201" fill="#71859B" font-family="Menlo,monospace" font-size="13">endpoint: http://10.0.2.2:11434</text>
+  <path d="M68 222h888" stroke="#33445A"/>
+  <text x="82" y="264" fill="#DDE9F6" font-family="Menlo,monospace" font-size="16">you › What can you help me build?</text>
+  <text x="82" y="306" fill="#A9BDD1" font-family="Menlo,monospace" font-size="15">AI OS › I can help build tools in the /ai workspace.</text>
+  <text x="82" y="332" fill="#A9BDD1" font-family="Menlo,monospace" font-size="15">Switch to Do mode when you want me to take action.</text>
+  <rect x="72" y="367" width="880" height="1" fill="#33445A"/>
+  <rect x="77" y="399" width="96" height="29" rx="14" fill="#182D42" stroke="#47DDF8"/>
+  <text x="125" y="419" fill="#64E4FF" text-anchor="middle" font-family="Menlo,monospace" font-size="12" letter-spacing="1">ACTIVITY</text>
+  <text x="194" y="420" fill="#D3E0EF" font-family="Menlo,monospace" font-size="15">Reading a workspace file</text>
+  <circle cx="178" cy="468" r="5" fill="#B7F36B"/><text x="194" y="473" fill="#A9BDD1" font-family="Menlo,monospace" font-size="15">Command finished (exit 0)</text>
+  <text x="76" y="550" fill="#9B6CFF" font-family="Menlo,monospace" font-size="15">Waiting for qwen2.5-coder:3b… 12s elapsed</text>
+  <path d="M68 576h888" stroke="#33445A"/>
+  <text x="78" y="619" fill="#E7EFF7" font-family="Menlo,monospace" font-size="17">you › <tspan fill="#64E4FF">_</tspan></text>
+  <text x="944" y="619" fill="#71859B" text-anchor="end" font-family="Menlo,monospace" font-size="12">F1 HELP · F2 MODE · CTRL-C EXIT</text>
+</svg>

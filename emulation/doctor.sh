@@ -42,10 +42,12 @@ echo "[4] artifacts"
 [ -f "$SEED_ISO" ] && ok "seed ISO present" || warn "no seed yet (vm.sh create)"
 
 echo "[5] model endpoint (host)"
-if curl -fsS -m 2 "http://127.0.0.1:${MODEL_PORT}/health" >/dev/null 2>&1; then
-  ok "HTTP health reachable on :$MODEL_PORT (model identity not verified)"
+if curl -fsS -m 2 "http://127.0.0.1:${OLLAMA_PORT}/api/version" >/dev/null 2>&1; then
+  ok "Ollama reachable on :$OLLAMA_PORT (run start.sh to verify/select a local model)"
+elif curl -fsS -m 2 "http://127.0.0.1:${MODEL_PORT}/health" >/dev/null 2>&1; then
+  ok "llama-server health reachable on :$MODEL_PORT (model identity not verified)"
 else
-  warn "no model server on :$MODEL_PORT (optional; needed only for future inference)"
+  warn "no model server found (start Ollama or llama-server before using chat/build)"
 fi
 
 echo; echo "result: $PASS ok, $WARN warn, $FAIL fail"

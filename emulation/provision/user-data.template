@@ -34,6 +34,8 @@ write_files:
     permissions: '0644'
     content: |
       export AIOS_MODEL_URL=${MODEL_URL}
+      export AIOS_MODEL=${MODEL_NAME}
+      export AIOS_MODEL_TIMEOUT=300
       export AIOS_EMULATED=1
       export PATH="/ai/bin:$PATH"
   - path: /etc/motd
