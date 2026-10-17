@@ -89,3 +89,14 @@ well-specified programs Phase 1 demands.
 - The actual production system prompts (doc 08).
 - Security, testing, and risk controls sufficient to run the system on real hardware
   with a human in the loop (docs 09–11).
+## Beginner first run
+
+AI OS remains emulator-first. Run `./emulation/start.sh` from macOS Terminal to
+prepare the Alpine aarch64 guest, detect a local Ollama model, and open a
+beginner-facing terminal console. Chat mode answers without tools; Do mode runs
+bounded tasks and displays progress, failures, and verification events. The
+existing workspace, approval, and network boundaries continue to apply. See
+[`15-FIRST-RUN-AND-TUI.md`](15-FIRST-RUN-AND-TUI.md) for exact setup steps.
+
+This remains research software. The VM is a development sandbox, and model
+connectivity does not establish task quality or production readiness.

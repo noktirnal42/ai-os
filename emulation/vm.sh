@@ -5,10 +5,11 @@ source "$(dirname "$0")/env.sh"
 usage() {
   cat <<'HELP'
 usage: vm.sh <command> [args]
-  doctor | fetch | create | boot [--fg] | wait | status | logs
+  doctor | fetch | create | boot [--fg] | wait | status | logs | tui
   seed               regenerate provisioning seed (stopped development VM only)
   ssh [args...]       SSH to the development VM
   exec CMD [args...]  execute a remote shell command; preserves exit status
+  tui                 start the AI OS interactive console with a local model
   push SRC DST       copy host SRC to guest DST (no implicit deletion)
   pull SRC DST       copy guest SRC to host DST (no implicit deletion)
   stop               orderly guest shutdown, then signal fallback
@@ -47,6 +48,7 @@ case "$cmd" in
     render_value() { [[ "$1" != *$'\n'* ]] || return 1; print -r -- "$1" | sed 's/[&|\\]/\\&/g'; }
     sed -e "s|\${HOST_PUBKEY}|$(render_value "$pubkey")|g" \
         -e "s|\${MODEL_URL}|$(render_value "$(model_url_for_guest)")|g" \
+        -e "s|\${MODEL_NAME}|$(render_value "$(model_name_for_guest)")|g" \
         -e "s|\${GUEST_USER}|$(render_value "$GUEST_USER")|g" \
         -e "s|\${GUEST_HOSTNAME}|$(render_value "$GUEST_HOSTNAME")|g" \
         "$EM_DIR/provision/user-data.template" > "$local_seed/user-data"
@@ -107,6 +109,13 @@ case "$cmd" in
     require_running
     ssh_cmd "$@"
     ;;
+  tui)
+    require_disk; require_running
+    [[ -t 0 && -t 1 ]] || die 'interactive console needs a real terminal; run emulation/start.sh from Terminal' 4
+    [[ -n "${AIOS_MODEL_URL:-}" && -n "${AIOS_MODEL:-}" ]] || die 'AIOS_MODEL_URL and AIOS_MODEL must be set; run emulation/start.sh' 4
+    remote_cmd="AIOS_MODEL_URL=${(q)AIOS_MODEL_URL} AIOS_MODEL=${(q)AIOS_MODEL} AIOS_MODEL_TIMEOUT=${(q)${AIOS_MODEL_TIMEOUT:-300}} /ai/bin/aios tui"
+    exec ssh "${SSH_OPTS[@]}" -tt -p "$SSH_PORT" "$GUEST_USER@127.0.0.1" "$remote_cmd"
+    ;;
   push|pull)
     (( $# == 2 )) || { usage; exit 2; }
     require_running
@@ -122,7 +131,7 @@ case "$cmd" in
     if ! ssh_cmd true 2>/dev/null; then log 'SSH: unreachable (not ready)'; exit 3; fi
     ssh_cmd 'sudo cloud-init status; uptime; df -h /; id; ls /ai' || exit $?
     # Non-login SSH does not source /etc/profile.d; explicitly load guest config.
-    ssh_cmd '. /etc/profile.d/aios.sh; printf "model: %s " "$AIOS_MODEL_URL"; if curl -fsS -m 2 "$AIOS_MODEL_URL/health" >/dev/null 2>&1; then echo REACHABLE; else echo "UNREACHABLE (optional until inference work)"; fi'
+    ssh_cmd '. /etc/profile.d/aios.sh; printf "model: %s (%s) " "$AIOS_MODEL_URL" "${AIOS_MODEL:-local}"; if curl -fsS -m 2 "$AIOS_MODEL_URL/health" >/dev/null 2>&1 || curl -fsS -m 2 "$AIOS_MODEL_URL/api/version" >/dev/null 2>&1; then echo REACHABLE; elif curl -fsS -m 2 "http://10.0.2.2:'"$OLLAMA_PORT"'/api/version" >/dev/null 2>&1; then echo "Ollama reachable at host port '"$OLLAMA_PORT"' (run emulation/start.sh to configure this guest)"; else echo "UNREACHABLE (run emulation/start.sh for setup help)"; fi'
     ;;
   logs) tail -n 100 "$CONSOLE_LOG"; [ ! -f "$CONSOLE_LOG.out" ] || tail -n 20 "$CONSOLE_LOG.out" ;;
   snapshot|rollback|list-snapshots)

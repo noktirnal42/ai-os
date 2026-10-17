@@ -14,9 +14,10 @@ minimal Alpine aarch64 guest, a bounded agent harness, and a human in the loop.
 The agent can write and test new software inside `/ai`; every capability is
 observable, checkpointable, and evaluated before it becomes part of the system.
 
-> **Status:** Phase 1 is live in the emulator. The harness, five native-style
-> utilities, safety probes, eval runner, and Ollama-backed model loop are
-> validated. This is research software, not a general-purpose operating system.
+> **Status:** AI OS runs in the emulator with a beginner-facing terminal console.
+> Chat mode answers questions without tools; Do mode runs bounded tasks and
+> shows tool progress, model waits, and verification results. This is research
+> software, not a general-purpose operating system.
 
 ## Why this exists
 
@@ -42,14 +43,48 @@ human intent → model → bounded tools → compiled software → tests → che
 | Evidence | unit tests, app acceptance tests, repeatable evals, sandbox probes |
 | Live model | Ollama OpenAI-compatible endpoint with `qwen2.5-coder:3b` |
 
-## Quickstart
+## Quickstart: talk to AI OS
+
+On an Apple Silicon Mac, install QEMU and Ollama, then install at least one local
+model. The recommended starter model is about 2 GB; AI OS will not download model
+weights without asking:
 
 ```bash
-brew install qemu
+brew install qemu ollama
+ollama pull qwen2.5-coder:3b
+```
+
+From macOS Terminal in this repository, run:
+
+```bash
+./emulation/start.sh
+```
+
+The launcher checks the host, verifies or creates the emulator, starts it when
+needed, syncs the current console, detects a local Ollama model, and opens the
+interactive terminal UI. On first launch it downloads the Alpine guest image;
+that image is checksum-verified. If Ollama is installed but stopped, the
+launcher starts its local service. It never installs Ollama or downloads model
+weights without an explicit command.
+
+In the console, type a question in **Chat** mode. Press **F2** to switch to
+**Do** mode, describe a task, and press Enter. Do mode shows each tool action,
+long model waits, approvals, failures, and completion. **F1** shows help; **Ctrl-C**
+or **Esc** exits. The task runner has a 32-tool / 15-minute budget; model
+requests may take up to five minutes. If no model is found, the launcher prints
+the exact setup command instead of starting a silent session.
+
+To launch from the guest shell directly after setup:
+
+```sh
+aios tui
+```
+
+For a non-interactive first-run check, or to operate the VM separately:
+
+```bash
 emulation/vm.sh doctor
-emulation/vm.sh fetch
-emulation/vm.sh create
-emulation/vm.sh boot && emulation/vm.sh wait
+emulation/vm.sh status
 emulation/vm.sh exec 'uname -m && ls /ai'
 ```
 
