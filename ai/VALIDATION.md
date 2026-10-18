@@ -218,3 +218,32 @@ is logged as a tool error without escaping the workspace policy.
 * probe app upgraded: HTTPS_OK check added (a-fetch https://huggingface.co).
   Live output: DNS_OK HTTP_OK HTTPS_OK ROUTE_OK LINK_OK, exit 0. Phase 2 exit
   gates G2-1 (full HTTPS form), G2-2, and G2-3 are all evidenced by this run.
+
+## Phase 3: cloudbridge (2026-10-18)
+
+* AI OS built the cloudbridge daemon autonomously in one verified session
+  (gemma4:31b-cloud, 60-tool budget): a stdlib-only OpenAI-compatible router on
+  127.0.0.1:8081 with cloud forwarding (key from /ai/secrets, never from the
+  client), silent local fallback, 30-second-cached offline-floor probe, JSONL
+  bridge log, and a 12-case hermetic unittest suite (mock upstreams on
+  ephemeral ports; passthrough, model rewrite, 401/timeout/refused fallback,
+  floor fast-path, malformed JSON 400, both-fail 502, key redaction). All 12
+  passed in ~9s. Registered as cloudbridge 0.1.0 with tests_pass: true.
+* Operator repairs after the build: (1) the floor probe crashed with
+  ValueError on cloud URLs without an explicit port — the hermetic test
+  doubles all used mock URLs with ports, which masked the real-world URL
+  shape; fixed to rsplit + scheme-default port; (2) the hermetic coverage gap
+  is recorded as a lesson, not silently patched in tests.
+* Live behavior, evidenced by /ai/state/bridge.log: floor probe passes
+  (probe=True, integrate.api.nvidia.com:443), cloud attempt returns NVIDIA
+  503 ResourceExhausted, bridge logs {route: cloud, status: 503,
+  fallback: true} and silently serves from local Ollama 200 (~1s).
+* Phase 3 gate G3-1 satisfied: harness pointed at http://127.0.0.1:8081
+  (model.json) completed a live `aios ask` session; log shows the route
+  decision (route: cloud, status 200, no fallback on the recorded pass).
+  G3-3 (key redaction) is covered by suite case 11; G3-2 live network-kill
+  and G3-4 offline-reboot tests remain open.
+* Deployment note: the bridge runs via setsid and survives ssh sessions but
+  not VM restarts; restart with `setsid python3 -u /ai/apps/cloudbridge/
+  cloudbridge.py &`. Rollback: point /ai/state/model.json back at the direct
+  provider URL.
