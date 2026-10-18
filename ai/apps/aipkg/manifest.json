@@ -1,0 +1,9 @@
+{
+  "name": "aipkg",
+  "version": "0.1.0",
+  "entry": "/ai/bin/aipkg",
+  "lang": "python",
+  "tests": "/ai/apps/aipkg/tests/run.sh",
+  "tests_pass": true,
+  "capabilities": []
+}

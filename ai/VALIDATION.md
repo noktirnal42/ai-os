@@ -335,7 +335,40 @@ is logged as a tool error without escaping the workspace policy.
   `tasks done <id>` made it try a PATH-less `tasks` (exit 127) and give up
   marking done; the brief now names the absolute path /ai/bin/tasks and
   says to verify interrupted work on disk instead of redoing it.
-* Next Phase 4 items: text browser (F4-2), package export (F4-3).
+* Next Phase 4 item: selftest (F4-4).
+
+## Phase 4 F4-3: package export/install (`aipkg`) — complete (2026-10-18)
+
+* New app `aipkg` (ai/apps/aipkg, entry /ai/bin/aipkg, manifest 0.1.0) implementing doc 07 §10:
+  `aipkg export NAME... → /ai/out/NAME-<ver>.aipkg` (tarball: manifest.json, registry.json (the
+  app's registry entry, or {} when unregistered), entry (deployable copy of the manifest entry
+  point; generated as a `#!/bin/sh exec python3` wrapper for Python apps when /ai/bin/<name>
+  is absent), src/ (a src/ directory plus root-level .py files), tests/ (when present)) and
+  `aipkg install FILE → unpack tarball, run tests/run.sh, register in
+  /ai/state/registry.json with tests_pass=true and create the /ai/bin entry point. Failing
+  tests abort the install and leave nothing behind (no app dir, no registry entry).
+* 12 hermetic unit tests (ai/apps/aipkg/tests/test_aipkg.py): tarball contents (manifest,
+  registry, entry, src/, tests/), unregistered-app registry entry, multiple apps, missing
+  app/manifest errors, no-args usage (exit 2); install: unpack + test + register, entry
+  deployed executable, failing-tests abort + cleanup, missing manifest, missing tests/run.sh,
+  nonexistent package, reinstall overwrite. Green: 12/12 on the guest and on the host.
+* Live acceptance (AC-5, machine-2 simulation on the guest VM): exported wbrowse
+  (0.1.0) to /ai/out/wbrowse-0.1.0.aipkg; stripped the app entirely (app dir, /ai/bin/wbrowse,
+  registry entry); installed from the tarball — it unpacked, ran wbrowse's 23 acceptance tests
+  (all passed), registered with tests_pass=true, and created executable /ai/bin/wbrowse;
+  `wbrowse --dump http://example.com/` renders live (rc=0) and tests/run.sh executes directly
+  (exec bit preserved through the tar).
+* libhttp prerequisite (fixed earlier, guest-only source patch): /ai/bin/libhttp did not follow
+  redirects although the source intended to (the Location value runs to end of header block, so
+  strstr(loc, "\\r\\n") returned NULL, and relative locations lack a scheme for parse_url).
+  Fixed ai/apps/libhttp/libhttp.c (capture value to end of buffer; resolve scheme-less locations
+  against the current host) and rebuilt/reinstalled /ai/bin/libhttp. Verified relative, absolute
+  and chained redirects plus a 404. ai/apps/libhttp does not exist in the host checkout, so that
+  source patch and rebuilt binary live in the guest; add them to the host tree before the next
+  commit cycle.
+* Remaining: `aios registry install wbrowse` requires the registry's human TTY approval
+  (ask_human) — not reachable through vm.sh exec. Run it interactively (see command below),
+  which also runs the app tests with the harness gate.
 
 ## Phase 4 F4-2: text browser (`wbrowse`) — complete (2026-10-18)
 

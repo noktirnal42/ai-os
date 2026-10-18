@@ -44,3 +44,6 @@ live-app-build-test:
 
 net-probe:
 	python3 evals/net-probe.py
+
+aipkg-test:
+	./apps/aipkg/tests/run.sh
