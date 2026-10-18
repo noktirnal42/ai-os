@@ -143,3 +143,57 @@ is logged as a tool error without escaping the workspace policy.
 * The VM remains running so the user's existing and new Terminal sessions are
   available. No snapshot was taken because the VM checkpoint workflow requires
   stopping the guest.
+
+## Cloud providers, streaming console, and the verified self-build loop (2026-10-18)
+
+* Cloud model configuration: `emulation/sync-keys.sh` copied the operator's
+  OpenRouter, Ollama Cloud, and NVIDIA NIM keys from the macOS Keychain into
+  `/ai/secrets/*.key` (0600, key material never printed; one transient
+  keychain-lock race was found and the script now retries). The harness reads
+  the key from `AIOS_MODEL_KEY` or `AIOS_MODEL_KEY_FILE` and sends
+  `Authorization: Bearer` only when a key exists, so local endpoints are
+  unaffected.
+* Live endpoints verified from inside the guest: OpenRouter `openrouter/free`
+  (capable but rate-limited 429 under agent loops), Ollama Cloud
+  `gemma4:31b-cloud` (reliable — used as the self-build workhorse), NVIDIA NIM
+  `nvidia/nemotron-3-nano-omni-30b-a3b-reasoning` and
+  `meta/llama-3.2-90b-vision-instruct` (periodic 503 ResourceExhausted).
+  `meta/codellama-70b` and several older NIM slugs 404 for this account.
+* Harness robustness: model responses stream over SSE with `reasoning_content`
+  separated from `content` (NVIDIA reasoning models previously looked silent),
+  streamed native `tool_calls` fragments are reconstructed by index, in-stream
+  `error` chunks raise instead of silently producing nothing, 429/5xx retry
+  with backoff, and malformed tool-call JSON no longer crashes the session.
+* `--require-command` crediting now matches a required command contained in a
+  batched successful shell call. Previously, models that ran two required
+  commands in one invocation were never credited and every such session was
+  mislabeled partial despite passing verifications.
+* Autonomous app builds (each registered with `tests_pass: true`, operator
+  gate approved, host suite green after pull): `libhttp` (F2-3) — 188-line C
+  HTTP/1.1 client, compiles `-Wall -Wextra -Werror`, live-verified fetching
+  `http://example.com` body with status 200 after AI OS fixed its own
+  status-parsing bug (printed 0 instead of 200); `net` (F2-4) — `a-fetch` and
+  `a-ping` CLIs with acceptance tests.
+* `probe` app built autonomously by AI OS and registered with
+  `tests_pass: true`; live output `DNS_OK HTTP_OK ROUTE_OK LINK_OK` exit 0.
+  This provides evidence for G2-2 (net.json matches `ip route`) and G2-3
+  (link-loss detection). G2-1 is satisfied in reduced scope: the live probe
+  targets `http://example.com` because libhttp does not implement TLS yet;
+  the spec's HTTPS probe remains open pending mbedtls/libtls integration
+  (openssl-dev is installed in the guest).
+* Six TUI features were built by AI OS itself through the verified Do-mode
+  loop (one shell-verification script per task, `verdict: succeeded,
+  verified: true`): up-arrow history recall, `/clear` + `/history`,
+  persistent history in `/ai/state/history.json`, tab completion of slash
+  commands, `/status` + `/retry`, and `/run` (a staged shell command with
+  `/ok` confirmation — proposed by AI OS when asked what to improve next).
+  Each was pulled from the guest and re-verified against the 20-test host
+  suite before integration; a guest-side `/ai/tmp/verify_tui.sh` +
+  `verify_extra.sh` pattern replaced inline quoting-fragile
+  `--require-command` strings.
+* `start.sh` no longer overwrites `/ai/state/model.json` when a selection
+  already exists (a restart previously reverted the operator's F3 provider
+  choice to the local 3B model). Evidence: `emulation/start.sh` guard and
+  live re-check after snapshot restore.
+* Milestone snapshot: `phase2-selfbuild` (2026-10-18, after the six
+  self-improvements and the Phase 2 app builds; commit fcb47ab).
