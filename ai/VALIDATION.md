@@ -336,3 +336,27 @@ is logged as a tool error without escaping the workspace policy.
   marking done; the brief now names the absolute path /ai/bin/tasks and
   says to verify interrupted work on disk instead of redoing it.
 * Next Phase 4 items: text browser (F4-2), package export (F4-3).
+
+## Phase 4 F4-2: text browser (`wbrowse`) — complete (2026-10-18)
+
+* New app `wbrowse` (ai/apps/wbrowse, entry /ai/bin/wbrowse, manifest 0.1.0) implementing doc 07 §9: libhttp fetch
+  (`/ai/bin/libhttp`, env override AIOS_LIBHTTP) -> minimal stdlib HTML parser (headings, lists, paragraphs, pre passthrough,
+  scripts/styles dropped, entities decoded, numbered links [N]) -> line-wrapped renderer -> curses viewer with keys
+  j/k scroll, Tab next link, Enter open link under cursor, b back, q quit, :open URL; plus --dump / --html-file
+  non-interactive modes for tests and acceptance.
+* 23 tests (ai/apps/wbrowse/tests/test_wbrowse.py): fixture HTMLs (headings, lists, links, nested inline tags,
+  entities &#233;/&lt;/&amp;/&quot;, pre blocks, script/style suppression, br, empty anchors, link marker spans, width
+  wrapping), relative-link resolution, history stack push/back/truncation, redirect following through libhttp against a
+  loopback server (relative, absolute, chained), 404 error page, dump-mode exit codes. Green: 23/23 on the guest
+  (fetch tests hit the real libhttp); host runs 20/23 with the 3 fetch tests skipped (no /ai/bin/libhttp on host).
+* Acceptance: `wbrowse --html-file tests/fixtures/sample.html` renders headings, bullets, verbatim pre, entities and
+  numbered links rc=0; `wbrowse --dump http://example.com/` renders live (rc=0); interactive curses viewer smoke-tested
+  via pty (starts, draws, quits on q).
+* libhttp prerequisite: /ai/bin/libhttp did not follow redirects although the source intended to (the Location value
+  runs to the end of the header block, so strstr(loc, "\\r\\n") returned NULL, and relative locations lack a scheme for
+  parse_url). Fixed ai/apps/libhttp/libhttp.c (capture value to end of buffer; resolve scheme-less locations against
+  the current host) and rebuilt/reinstalled /ai/bin/libhttp. Verified relative, absolute and chained redirects plus a
+  404. Guest-only change: ai/apps/libhttp does not exist in the host checkout, so the source patch and rebuilt binary
+  live in the guest; add them to the host tree before the next commit cycle.
+* Remaining: `aios registry install wbrowse` requires the registry's human TTY approval (ask_human) — not reachable
+  through vm.sh exec. Run it interactively (see command below), which also runs the app tests with the harness gate.
