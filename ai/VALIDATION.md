@@ -299,7 +299,40 @@ is logged as a tool error without escaping the workspace policy.
 * Functional check: add two tasks (second depends on the first); next
   correctly returns the first until it is done, then the second. Depends
   gating verified.
-* Harness session-resume integration (the doc 07 §8 acceptance: kill a
-  session mid-task and resume from tasks.json) remains open as the next
-  Phase 4 slice, alongside the text browser (F4-2) and package export
-  (F4-3).
+* Harness session-resume integration (the doc 07 §8 acceptance) is now
+  evidenced — F4-1 is complete. Details below.
+
+## Phase 4 F4-1 acceptance: session resume (2026-10-18)
+
+* Harness (ai/aios.py) now reads the shared task list for state-summary
+  injection (doc 05 §7.1): each turn the session refreshes the task-list
+  block in the opening user message only when /ai/state/tasks.json changed
+  (keeping the prompt-cache prefix stable), and emits a task_state_refresh
+  audit event on change. Reading is fail-closed (corrupt/missing JSON reads
+  as an empty list) and honors AIOS_TASKS_FILE for hermetic tests.
+* New `aios resume [--from SID] [goal]` continues an interrupted session:
+  it rebuilds the brief from the unfinished (pending/active/failed) tasks —
+  ids, dependency order, acceptance commands — and, with --from, recovers
+  the original goal from the killed session's audit log
+  (/ai/state/sessions/SID.jsonl). session_start records `resumes: SID`.
+  With nothing unfinished it reports "nothing to resume" and exits 0.
+* Four new hermetic unit tests (24 total, green in guest and on host):
+  fail-closed summary + AIOS_TASKS_FILE override, resume brief content and
+  all-done case, run-loop injection + refresh-on-change + resumes field,
+  and goal recovery from the audit log (with path-traversal rejection).
+* Live acceptance (local model Qwen2.5-7B via host Ollama, guest endpoint
+  10.0.2.2:11434): seeded two dependent tasks (step1.txt "ready", step2.txt
+  "done" depends on 1), started `aios run`, SIGKILLed the session the moment
+  step1's file appeared (work done, task 1 not yet accepted/marked, task 2
+  untouched), then ran `aios resume --from <killed sid>`. The resumed
+  session: read the existing step1 work and marked task 1 done, created
+  step2.txt, ran its acceptance command (exit 0), marked task 2 done, and
+  finished. Both task_state_refresh events and every /ai/bin/tasks call are
+  in the audit log (20261018T213007Z-afb50ee0.jsonl, resumes=
+  20261018T212941Z-c562793f). Final state: both tasks done, both files
+  correct.
+* One iteration was needed on the resume brief wording: telling the model
+  `tasks done <id>` made it try a PATH-less `tasks` (exit 127) and give up
+  marking done; the brief now names the absolute path /ai/bin/tasks and
+  says to verify interrupted work on disk instead of redoing it.
+* Next Phase 4 items: text browser (F4-2), package export (F4-3).

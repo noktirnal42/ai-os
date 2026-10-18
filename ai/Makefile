@@ -1,4 +1,4 @@
-.PHONY: selftest test calc-test fileutils-test jobs-test aed-test ask-test net-test eval sandbox-probes live-model-test live-self-build-test live-app-build-test net-probe
+.PHONY: selftest test calc-test fileutils-test jobs-test aed-test ask-test net-test tasks-test eval sandbox-probes live-model-test live-self-build-test live-app-build-test net-probe
 
 selftest:
 	./selftest
@@ -23,6 +23,9 @@ ask-test:
 
 net-test:
 	./apps/net/tests/run.sh
+
+tasks-test:
+	./apps/tasks/tests/run.sh
 
 eval:
 	./evals/run.sh --phase 1 --repeat 1

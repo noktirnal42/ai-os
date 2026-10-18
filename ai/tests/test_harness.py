@@ -253,5 +253,71 @@ class HarnessTests(unittest.TestCase):
         outside = json.dumps({"name": "/bin/sh", "arguments": {"path": "/etc/passwd"}})
         self.assertIsNone(aios.Session.text_tool_call(outside))
 
+    def test_task_state_summary_reads_shared_list_and_fails_closed(self):
+        tasks_path = self.root / "state" / "tasks.json"
+        tasks_path.write_text(json.dumps({"tasks": [
+            {"id": 1, "title": "write step", "status": "done", "depends": [], "acceptance_cmd": "true"},
+            {"id": 2, "title": "second step", "status": "pending", "depends": [1], "acceptance_cmd": "test -f /ai/apps/ok"},
+            {"id": 3, "title": "broken step", "status": "failed", "depends": [], "acceptance_cmd": ""},
+        ]}))
+        summary = aios.task_state_summary()
+        self.assertIn("[2] second step (pending) depends:1 acceptance:test -f /ai/apps/ok", summary)
+        self.assertIn("[3] broken step (failed)", summary)
+        self.assertNotIn("[1]", summary)
+        tasks_path.write_text("{corrupt json")
+        self.assertIsNone(aios.task_state_summary())
+        with mock.patch.dict(os.environ, {"AIOS_TASKS_FILE": str(self.root / "state" / "elsewhere.json")}):
+            self.assertIsNone(aios.task_state_summary())
+
+    def test_resume_goal_brief_includes_unfinished_tasks_and_original_goal(self):
+        (self.root / "state" / "tasks.json").write_text(json.dumps({"tasks": [
+            {"id": 1, "title": "done thing", "status": "done"},
+            {"id": 2, "title": "resume thing", "status": "active", "acceptance_cmd": "echo ok"},
+        ]}))
+        goal = aios.resume_goal("build the widget")
+        self.assertIn("[2] resume thing (active)", goal)
+        self.assertIn("Original session goal: build the widget", goal)
+        self.assertNotIn("[1]", goal)
+        (self.root / "state" / "tasks.json").write_text(json.dumps({"tasks": [
+            {"id": 1, "title": "done", "status": "done"}]}))
+        self.assertIsNone(aios.resume_goal("anything"))
+
+    def test_run_injects_task_state_and_refreshes_when_list_changes(self):
+        root = self.root
+        (root / "state" / "tasks.json").write_text(json.dumps({"tasks": [
+            {"id": 1, "title": "finish it", "status": "pending", "acceptance_cmd": "true"}]}))
+        seen = []
+        class FakeClient:
+            offline = False
+            def __init__(self): self.calls = 0
+            def chat(self, messages, tools):
+                self.calls += 1
+                seen.append(messages[1]["content"])
+                if self.calls == 1:
+                    args = {"path": str(root / "state" / "tasks.json"),
+                            "content": json.dumps({"tasks": [{"id": 1, "title": "finish it", "status": "done", "acceptance_cmd": "true"}]})}
+                    return {"choices": [{"message": {"role": "assistant", "content": "", "tool_calls": [
+                        {"id": "1", "function": {"name": "fs_write", "arguments": json.dumps(args)}}]}}]}
+                return {"choices": [{"message": {"role": "assistant", "content": "all done"}}]}
+        session = aios.Session("task injection", FakeClient(), max_tools=4, max_seconds=5, resumes="prior-sid")
+        self.assertEqual(session.run(), 0)
+        self.assertIn("[1] finish it (pending)", seen[0])
+        self.assertNotIn("[1]", seen[1])
+        rows = [json.loads(line) for line in session.log.path.read_text().splitlines()]
+        start = next(r for r in rows if r["ev"] == "session_start")
+        self.assertEqual(start["resumes"], "prior-sid")
+        refresh = [r for r in rows if r["ev"] == "task_state_refresh"]
+        self.assertEqual(len(refresh), 1)
+
+    def test_session_goal_recovery_from_audit_log(self):
+        log_dir = self.root / "state" / "sessions"
+        log_dir.mkdir(parents=True, exist_ok=True)
+        (log_dir / "sid-abc.jsonl").write_text(
+            json.dumps({"ev": "session_start", "goal": "write the browser"}) + "\n" +
+            json.dumps({"ev": "tool_call"}) + "\n")
+        self.assertEqual(aios.session_goal_from_log("sid-abc"), "write the browser")
+        self.assertIsNone(aios.session_goal_from_log("missing-sid"))
+        self.assertIsNone(aios.session_goal_from_log("../escape"))
+
 
 if __name__ == "__main__": unittest.main()
