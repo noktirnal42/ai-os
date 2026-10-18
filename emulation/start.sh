@@ -78,7 +78,7 @@ config_file="$(mktemp -t aios-model-config)"
 trap 'rm -f "$config_file"' EXIT
 python3 -c 'import json,sys; f=open(sys.argv[3],"w"); json.dump({"url":sys.argv[1],"model":sys.argv[2],"timeout_seconds":300},f); f.write("\n"); f.close()' "$guest_url" "$model" "$config_file"
 "$EM_DIR/vm.sh" push "$config_file" /ai/tmp/model.json
-"$EM_DIR/vm.sh" exec 'mv /ai/tmp/model.json /ai/state/model.json && chmod 600 /ai/state/model.json'
+"$EM_DIR/vm.sh" exec 'if [ ! -s /ai/state/model.json ]; then mv /ai/tmp/model.json /ai/state/model.json && chmod 600 /ai/state/model.json; else rm -f /ai/tmp/model.json; fi'
 "$EM_DIR/vm.sh" push "$REPO_ROOT/ai/aios.py" /ai/bin/aios.py
 "$EM_DIR/vm.sh" push "$REPO_ROOT/ai/aios_tui.py" /ai/bin/aios_tui.py
 "$EM_DIR/vm.sh" push "$REPO_ROOT/ai/aios" /ai/bin/aios
