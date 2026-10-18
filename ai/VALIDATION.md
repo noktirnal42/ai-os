@@ -247,3 +247,28 @@ is logged as a tool error without escaping the workspace policy.
   not VM restarts; restart with `setsid python3 -u /ai/apps/cloudbridge/
   cloudbridge.py &`. Rollback: point /ai/state/model.json back at the direct
   provider URL.
+
+## Phase 3 G3-2: live network-kill and bridge persistence (2026-10-18)
+
+* cloudbridge now survives VM restarts: /etc/local.d/cloudbridge.start is
+  registered in the OpenRC `local` runlevel; after a full `vm.sh stop/boot`
+  cycle the bridge answered /healthz with no manual start and completed a
+  harness session through it.
+* A live network-kill test exposed a real robustness flaw the hermetic suite
+  missed: with packets silently dropped (iptables DROP, not refused), a
+  request arriving inside the 30-second probe-cache window stalled on the
+  full cloud timeout (120s) before falling back — the "no 60s hang" the spec
+  forbids. The existing mocks modeled refused connections, which fail
+  instantly, not black-holed ones.
+* AI OS fixed it itself (cloudbridge v2, verified session): a 3-second TCP
+  pre-check before every cloud forward (logging route "probe_failed"),
+  probe-cache invalidation after any cloud failure, and two new tests — a
+  black-hole server (accepts, never responds) asserting local fallback
+  under 5s, and a cache-invalidation test asserting the next request routes
+  local with no cloud delay. Suite grew 12 -> 14, all passing.
+* Live G3-2 evidence with the full kill (iptables allowed only 10.0.2.2 and
+  loopback): harness session completed via local in 4 seconds total
+  (bridge log route local, 4402ms), no hang; after removing the rules and
+  letting the 30-second probe cache expire, the next request routed cloud,
+  status 200 in 2.2s. Both directions evidenced in /ai/state/bridge.log.
+* Operator tuning: cloud timeout_s lowered 120 -> 45 as defense in depth.
