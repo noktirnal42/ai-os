@@ -287,3 +287,19 @@ is logged as a tool error without escaping the workspace policy.
   LINK_DOWN, exit 1) — a live cross-check of G2-3, not a unit test.
 * After removing the rules: DNS recovered and the next bridge request
   routed cloud, status 200, in ~2s. Phase 3 gate G3-4 is evidenced.
+
+## Phase 4 begins: task engine F4-1 (2026-10-18)
+
+* AI OS built the tasks CLI autonomously in a verified session run in a
+  visible macOS Terminal window (the operator watched the live reasoning
+  and tool stream): /ai/bin/tasks with add/list/next/done/fail/show,
+  state in /ai/state/tasks.json (overridable via AIOS_TASKS_FILE for
+  hermetic tests), integer ids, depends gating in next, fail-closed JSON
+  handling. Registered as tasks 0.1.0, tests_pass true.
+* Functional check: add two tasks (second depends on the first); next
+  correctly returns the first until it is done, then the second. Depends
+  gating verified.
+* Harness session-resume integration (the doc 07 §8 acceptance: kill a
+  session mid-task and resume from tasks.json) remains open as the next
+  Phase 4 slice, alongside the text browser (F4-2) and package export
+  (F4-3).
