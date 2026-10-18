@@ -272,3 +272,18 @@ is logged as a tool error without escaping the workspace policy.
   letting the 30-second probe cache expire, the next request routed cloud,
   status 200 in 2.2s. Both directions evidenced in /ai/state/bridge.log.
 * Operator tuning: cloud timeout_s lowered 120 -> 45 as defense in depth.
+
+## Phase 3 G3-4: offline re-test of Phase 0-1 (2026-10-18)
+
+* Live network-down test inside the guest: iptables + ip6tables OUTPUT rules
+  allowed only the established SSH console and loopback, dropping all new
+  outbound connections on both protocol stacks (the first attempt blocked
+  IPv4 only and the suite leaked through IPv6 — guest DNS resolves AAAA
+  first and slirp passes IPv6; both tables must be filtered).
+* With the network fully down: calc, fileutils, jobs, aed, ask, and net all
+  passed their acceptance suites offline; the harness offline smoke
+  returned the expected [offline] model disabled response; and the probe
+  app correctly detected the outage (DNS_FAIL HTTP_FAIL HTTPS_FAIL
+  LINK_DOWN, exit 1) — a live cross-check of G2-3, not a unit test.
+* After removing the rules: DNS recovered and the next bridge request
+  routed cloud, status 200, in ~2s. Phase 3 gate G3-4 is evidenced.
