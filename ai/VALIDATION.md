@@ -197,3 +197,24 @@ is logged as a tool error without escaping the workspace policy.
   live re-check after snapshot restore.
 * Milestone snapshot: `phase2-selfbuild` (2026-10-18, after the six
   self-improvements and the Phase 2 app builds; commit fcb47ab).
+
+## TLS in libhttp and full G2-1 (2026-10-18)
+
+* AI OS attempted HTTPS support autonomously (40-tool session, budget
+  exhausted mid-task) and produced a structurally correct OpenSSL path that
+  failed at runtime. Host-side diagnosis: the code never set SNI, so servers
+  answered TLS alert 40 (handshake failure) while curl to the same host
+  succeeded. A minimal debug program reproduced the failure independently of
+  libhttp, isolating the cause. Fix: SSL_set_tlsext_host_name(ssl, host)
+  before SSL_connect.
+* After the SNI fix: /ai/bin/libhttp https://example.com and
+  https://huggingface.co both return 200 (live, from inside the guest).
+  a-fetch was recompiled against the TLS-enabled library (-lssl -lcrypto).
+* The model had left tests/run.sh as a bare `exit 0` stub; the operator
+  replaced it with a real acceptance test: unit checks compiled
+  -Wall -Wextra -Werror with -lssl -lcrypto, live plain-HTTP 200, live HTTPS
+  200, and a bad-host rejection check. Output: LIBHTTP_ALL_PASS. libhttp 0.2.0
+  was registered through the normal operator gate with these tests passing.
+* probe app upgraded: HTTPS_OK check added (a-fetch https://huggingface.co).
+  Live output: DNS_OK HTTP_OK HTTPS_OK ROUTE_OK LINK_OK, exit 0. Phase 2 exit
+  gates G2-1 (full HTTPS form), G2-2, and G2-3 are all evidenced by this run.
