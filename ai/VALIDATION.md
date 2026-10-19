@@ -391,9 +391,12 @@ is logged as a tool error without escaping the workspace policy.
   registry entry); installed fresh from the tarball — it unpacked, ran wbrowse's 23 acceptance
   tests (all passed), registered with tests_pass=true, created executable /ai/bin/wbrowse;
   `wbrowse --dump http://example.com/` renders live through the installed entry (rc=0).
-* Registration: `aios registry install wbrowse` requires the registry's human TTY approval
-  (ask_human) — not reachable through vm.sh exec; run it interactively.
-* Remaining: selftest (F4-4).
+* Registration: `aios registry install wbrowse` is now a valid CLI command but requires the
+  registry's human TTY approval (ask_human) — not reachable through vm.sh exec; it cleanly
+  reports "app install was not approved by the human" (rc 1) when run non-interactively.
+  Run it interactively from macOS Terminal (`emulation/vm.sh exec` won't provide a TTY).
+  Functional registration is already in place via `aipkg install` (registry.json shows
+  wbrowse: tests_pass=true, entry /ai/bin/wbrowse), verified by `aios registry query wbrowse`.
 
 ## Phase 4 F4-4: selftest — complete (2026-10-18)
 

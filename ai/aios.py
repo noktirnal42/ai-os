@@ -629,6 +629,9 @@ def main() -> int:
     resume = sub.add_parser("resume", help="continue an interrupted session from the shared task list")
     resume.add_argument("goal", nargs="?", default=""); resume.add_argument("--from", dest="from_session", help="session id whose goal should be inherited"); resume.add_argument("--offline", action="store_true"); resume.add_argument("--max-tools", type=int, default=200); resume.add_argument("--max-seconds", type=int, default=2700); resume.add_argument("--require-command", action="append", default=[])
     sub.add_parser("tui", help="open the beginner-friendly interactive console")
+    reg = sub.add_parser("registry", help="query, install, or remove an app registry entry")
+    reg.add_argument("op", choices=["install", "remove", "query"])
+    reg.add_argument("name")
     args = parser.parse_args()
     AI_ROOT.mkdir(parents=True, exist_ok=True)
     load_model_config()
@@ -673,6 +676,21 @@ def main() -> int:
                 print(f"run: selftest not green ({report.get('passed')}/{report.get('count')}); refusing to run", file=sys.stderr)
                 return 3
         return Session(args.goal, ModelClient(os.environ.get("AIOS_MODEL_URL", "http://10.0.2.2:8080"), args.offline), args.max_tools, args.max_seconds, required_commands=tuple(args.require_command)).run()
+    if args.command == "registry":
+        session = Session("registry", ModelClient(os.environ.get("AIOS_MODEL_URL", "http://10.0.2.2:8080"), offline=True))
+        try:
+            result = session.registry({"op": args.op, "name": args.name})
+        except PermissionError as exc:
+            print(f"registry: {exc}", file=sys.stderr)
+            return 1
+        except ValueError as exc:
+            print(f"registry: {exc}", file=sys.stderr)
+            return 1
+        if args.op == "query":
+            print(json.dumps(result.get("registry", {}), indent=2, sort_keys=True))
+        else:
+            print(f"registry {args.op}: {args.name} -> {result.get('registry', {})}")
+        return 0
 
 
 if __name__ == "__main__": sys.exit(main())
