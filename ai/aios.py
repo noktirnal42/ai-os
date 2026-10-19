@@ -474,8 +474,10 @@ class Session:
         raise ValueError("invalid checkpoint op")
 
     def ask_human(self, args: dict[str, Any]) -> dict[str, Any]:
-        if not sys.stdin.isatty(): return {"approved": False, "reason": "non-interactive session"}
-        answer = input(args["question"] + " [y/N] ").strip().lower()
+        try:
+            answer = input(args["question"] + " [y/N] ").strip().lower()
+        except (EOFError, OSError):
+            return {"approved": False, "reason": "non-interactive session"}
         self.log.emit("gate", question=args["question"], human=answer)
         return {"approved": answer in {"y", "yes"}}
 
