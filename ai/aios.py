@@ -687,7 +687,7 @@ def main() -> int:
             print(f"registry: {exc}", file=sys.stderr)
             return 1
         if args.op == "query":
-            print(json.dumps(result.get("registry", {}), indent=2, sort_keys=True))
+            print(json.dumps(result.get("app", {}), indent=2, sort_keys=True))
         else:
             print(f"registry {args.op}: {args.name} -> {result.get('registry', {})}")
         return 0
