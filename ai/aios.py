@@ -625,7 +625,7 @@ def main() -> int:
     parser = argparse.ArgumentParser(prog="aios")
     sub = parser.add_subparsers(dest="command", required=True)
     ask = sub.add_parser("ask"); ask.add_argument("prompt"); ask.add_argument("--offline", action="store_true")
-    run = sub.add_parser("run"); run.add_argument("goal"); run.add_argument("--offline", action="store_true"); run.add_argument("--max-tools", type=int, default=200); run.add_argument("--max-seconds", type=int, default=2700); run.add_argument("--require-command", action="append", default=[])
+    run = sub.add_parser("run"); run.add_argument("goal"); run.add_argument("--offline", action="store_true"); run.add_argument("--max-tools", type=int, default=200); run.add_argument("--max-seconds", type=int, default=2700); run.add_argument("--require-command", action="append", default=[]); run.add_argument("--require-selftest", action="store_true", help="refuse to run unless the latest selftest report is green")
     resume = sub.add_parser("resume", help="continue an interrupted session from the shared task list")
     resume.add_argument("goal", nargs="?", default=""); resume.add_argument("--from", dest="from_session", help="session id whose goal should be inherited"); resume.add_argument("--offline", action="store_true"); resume.add_argument("--max-tools", type=int, default=200); resume.add_argument("--max-seconds", type=int, default=2700); resume.add_argument("--require-command", action="append", default=[])
     sub.add_parser("tui", help="open the beginner-friendly interactive console")
@@ -662,7 +662,17 @@ def main() -> int:
             return 0
         session = Session(goal, ModelClient(os.environ.get("AIOS_MODEL_URL", "http://10.0.2.2:8080"), args.offline), args.max_tools, args.max_seconds, required_commands=tuple(args.require_command), resumes=args.from_session)
         return session.run()
-    return Session(args.goal, ModelClient(os.environ.get("AIOS_MODEL_URL", "http://10.0.2.2:8080"), args.offline), args.max_tools, args.max_seconds, required_commands=tuple(args.require_command)).run()
+    if args.command == "run":
+        if args.require_selftest:
+            reports = sorted(AI_ROOT.glob("state/selftest-*.json"))
+            if not reports:
+                print("run: --require-selftest but no selftest report found; run selftest first", file=sys.stderr)
+                return 3
+            report = json.loads(reports[-1].read_text())
+            if not report.get("all_pass"):
+                print(f"run: selftest not green ({report.get('passed')}/{report.get('count')}); refusing to run", file=sys.stderr)
+                return 3
+        return Session(args.goal, ModelClient(os.environ.get("AIOS_MODEL_URL", "http://10.0.2.2:8080"), args.offline), args.max_tools, args.max_seconds, required_commands=tuple(args.require_command)).run()
 
 
 if __name__ == "__main__": sys.exit(main())

@@ -1,4 +1,4 @@
-.PHONY: selftest test calc-test fileutils-test jobs-test aed-test ask-test net-test tasks-test eval sandbox-probes live-model-test live-self-build-test live-app-build-test net-probe
+.PHONY: selftest test calc-test fileutils-test jobs-test aed-test ask-test net-test tasks-test aipkg-test selftest-test eval sandbox-probes live-model-test live-self-build-test live-app-build-test net-probe
 
 selftest:
 	./selftest
@@ -47,3 +47,6 @@ net-probe:
 
 aipkg-test:
 	./apps/aipkg/tests/run.sh
+
+selftest-test:
+	./apps/selftest/tests/run.sh

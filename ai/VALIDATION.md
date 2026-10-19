@@ -370,6 +370,47 @@ is logged as a tool error without escaping the workspace policy.
   (ask_human) — not reachable through vm.sh exec. Run it interactively (see command below),
   which also runs the app tests with the harness gate.
 
+## Phase 4 F4-3: package export/install (`aipkg`) — complete (2026-10-18)
+
+* New app `aipkg` (ai/apps/aipkg, entry /ai/bin/aipkg, manifest 0.1.0) implementing doc 07 §10:
+  `aipkg export NAME... → /ai/out/NAME-<ver>.aipkg` (tarball: manifest.json, registry.json (the
+  app's registry entry, or {} when unregistered), entry (deployable copy of the manifest entry
+  point; auto-generated as a `#!/bin/sh exec python3` wrapper for Python apps when no
+  /ai/bin/<name> exists), src/ (a src/ directory plus root-level .py files), tests/ (when
+  present)) and `aipkg install FILE → unpack tarball, run tests/run.sh in a sandbox, register
+  in /ai/state/registry.json with tests_pass=true, and create the /ai/bin entry point. Failing
+  tests abort the install and leave nothing behind (no app dir, no registry entry).
+* 12 hermetic unit tests (ai/apps/aipkg/tests/test_aipkg.py): tarball contents, unregistered-app
+  registry entry, multiple apps, missing app/manifest errors, no-args usage (exit 2); install:
+  unpack + test + register, entry deployed executable, failing-tests abort + cleanup, missing
+  manifest, missing tests/run.sh, nonexistent package, reinstall overwrite. Green: 12/12 on the
+  guest and on the host.
+* Live acceptance (AC-5, machine-2 simulation on the guest VM): exported wbrowse (0.1.0) to
+  /ai/out/wbrowse-0.1.0.aipkg (self-contained: src/wbrowse.py + tests + manifest + registry
+  entry + generated entry wrapper); stripped the app entirely (app dir, /ai/bin/wbrowse,
+  registry entry); installed fresh from the tarball — it unpacked, ran wbrowse's 23 acceptance
+  tests (all passed), registered with tests_pass=true, created executable /ai/bin/wbrowse;
+  `wbrowse --dump http://example.com/` renders live through the installed entry (rc=0).
+* Registration: `aios registry install wbrowse` requires the registry's human TTY approval
+  (ask_human) — not reachable through vm.sh exec; run it interactively.
+* Remaining: selftest (F4-4).
+
+## Phase 4 F4-4: selftest — complete (2026-10-18)
+
+* New app `selftest` (ai/apps/selftest, entry /ai/bin/selftest, manifest 0.1.0) implementing
+  doc 07 §11: reads /ai/state/registry.json, runs every registered app's tests/run.sh in a
+  sandboxed subprocess (AIOS_ALLOW_NETWORK, AIOS_MODEL_URL and AIOS_MODEL stripped from the
+  environment; 300s per-app timeout), prints a name/pass/secs table, exits 0 iff all pass, and
+  writes /ai/state/selftest-<ts>.json with the full report.
+* 7 hermetic unit tests (ai/apps/selftest/tests/test_selftest.py): all-pass registry, single
+  failure, missing tests/run.sh entry, empty registry, missing registry file, sandbox env
+  stripping, per-app timeout. Green: 7/7 on the guest and on the host.
+* Harness gate: `aios run --require-selftest` refuses to run (exit 3) when no selftest report
+  exists or the latest report is not all_pass; a green report lets the session proceed. Live
+  acceptance: no report → rc 3; after `selftest` writes a green report, `aios run --offline
+  --require-selftest` proceeds to the session (offline model, rc 0).
+* Next Phase 5 item: long-horizon autonomy / harness self-modification review board.
+
 ## Phase 4 F4-2: text browser (`wbrowse`) — complete (2026-10-18)
 
 * New app `wbrowse` (ai/apps/wbrowse, entry /ai/bin/wbrowse, manifest 0.1.0) implementing doc 07 §9: libhttp fetch
