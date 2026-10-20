@@ -413,6 +413,27 @@ class HarnessTests(unittest.TestCase):
         self.assertIn("Declared capabilities: fs:/ai/state", question)
         self.assertIn("lines, network disabled", question)
 
+    def test_install_refuses_unsupported_and_network_capabilities_before_prompting(self):
+        self.prepare_app("capped", "exit 0\n")
+        manifest = self.root / "apps" / "capped" / "manifest.json"
+        s = self.session()
+        for declared, expected in ((["net:example.com"], "network capabilities"), (["proc:spawn"], "unsupported capabilities")):
+            data = json.loads(manifest.read_text()); data["capabilities"] = declared; manifest.write_text(json.dumps(data))
+            with mock.patch.object(s, "ask_human", return_value={"approved": True}) as ask:
+                with self.assertRaisesRegex(PermissionError, expected):
+                    s.registry({"op": "install", "name": "capped"})
+            ask.assert_not_called()
+
+    def test_install_accepts_supported_capability_and_prompts(self):
+        self.prepare_app("allowed", "exit 0\n")
+        manifest = self.root / "apps" / "allowed" / "manifest.json"
+        data = json.loads(manifest.read_text()); data["capabilities"] = ["fs:/ai/state"]; manifest.write_text(json.dumps(data))
+        s = self.session()
+        with mock.patch.object(s, "ask_human", return_value={"approved": False}) as ask:
+            with self.assertRaises(PermissionError):
+                s.registry({"op": "install", "name": "allowed"})
+        ask.assert_called_once()
+
     def test_model_cannot_remove_apps_or_see_remove_in_its_tools(self):
         self.prepare_app("kept", "exit 0\n")
         registry = self.root / "state" / "registry.json"

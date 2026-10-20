@@ -24,6 +24,9 @@ WRITE_ROOTS = tuple((AI_ROOT / p).resolve() for p in ("apps", "lib", "bin", "sta
 READ_ROOTS = WRITE_ROOTS + ((AI_ROOT / "checkpoints").resolve(),)
 SECRET_ROOT = (AI_ROOT / "secrets").resolve()
 MAX_OUTPUT = 4096
+# Capabilities an app may declare. Anything else is refused at install time.
+# Network capabilities are refused until a network policy exists for apps.
+APP_CAPABILITIES = frozenset({"fs:/ai/state"})
 MAX_FILE = 65536
 FORBIDDEN_PATHS = re.compile(r"(^|[\s'\";|&])/(?:etc|usr|root|home|mnt|media|dev(?:/sd|/vd|/nvme))(?:[/\s'\";|&]|$)")
 NETWORK_COMMANDS = re.compile(r"(^|[\s;|&])(curl|wget|nc|netcat|ssh|scp|sftp|telnet|ping)(?:\s|$)")
@@ -437,12 +440,18 @@ class Session:
             if manifest["name"] != name: raise ValueError("manifest name does not match registry name")
             if not isinstance(manifest["version"], str) or not re.fullmatch(r"\d+\.\d+(?:\.\d+)?", manifest["version"]):
                 raise ValueError("manifest version must be numeric dotted version")
+            declared = manifest.get("capabilities", [])
+            if not isinstance(declared, list) or not all(isinstance(c, str) for c in declared):
+                raise ValueError("manifest capabilities must be a list of strings")
+            if any(c.startswith("net:") for c in declared):
+                raise PermissionError("network capabilities are not available to apps yet")
+            unsupported = [c for c in declared if c not in APP_CAPABILITIES]
+            if unsupported: raise PermissionError("unsupported capabilities: " + ", ".join(unsupported))
             entry_path = safe_path(manifest["entry"], (AI_ROOT / "bin",))
             if not entry_path.is_file(): raise FileNotFoundError("manifest entry is not installed under /ai/bin")
             tests_path = safe_path(manifest["tests"], (app_dir,))
             if tests_path != app_dir / "tests" / "run.sh" or not tests_path.is_file():
                 raise PermissionError("manifest tests must be /ai/apps/<name>/tests/run.sh")
-            declared = manifest.get("capabilities", [])
             caps_text = ", ".join(str(c) for c in declared) if isinstance(declared, list) and declared else "none declared"
             try:
                 test_lines = len(tests_path.read_text(errors="replace").splitlines())
