@@ -62,7 +62,7 @@ def queue_message(store, to, subject, body, date):
 def run_window(mail):
     import gi
     gi.require_version("Gtk", "4.0")
-    from gi.repository import GLib, Gtk
+    from gi.repository import Gdk, GLib, Gtk
 
     path = os.environ.get("AIOS_MAIL_FILE") or mail.DEFAULT_FILE
 
@@ -107,7 +107,18 @@ def run_window(mail):
             right.append(self.status)
             paned.set_end_child(right)
 
+            keys = Gtk.EventControllerKey()
+            keys.connect("key-pressed", self.on_key)
+            self.add_controller(keys)
+
             self.reload()
+
+        def on_key(self, _controller, keyval, _keycode, state):
+            # Ctrl+N opens Compose, the same as the header button.
+            if keyval in (Gdk.KEY_n, Gdk.KEY_N) and state & Gdk.ModifierType.CONTROL_MASK:
+                self.on_compose(None)
+                return True
+            return False
 
         def store(self):
             return mail.load_store(path)
