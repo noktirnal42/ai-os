@@ -10,6 +10,6 @@ mkdir -p "$RT"; chmod 700 "$RT"
 pkill -x sway 2>/dev/null || true
 sleep 1
 (XDG_RUNTIME_DIR="$RT" WLR_RENDERER=pixman LIBSEAT_BACKEND=seatd \
-  timeout 3600 sway -c "$CONF" >/tmp/sway-screen.log 2>&1 &)
+  sway -c "$CONF" >/tmp/sway-screen.log 2>&1 &)
 sleep 8
 pgrep -x sway >/dev/null && echo "SCREEN_OK" || { echo "sway failed"; tail -5 /tmp/sway-screen.log; exit 1; }

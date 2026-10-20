@@ -3,7 +3,7 @@
 #   emulation/vm.sh exec 'sh /ai/desktop/setup.sh'
 set -eu
 # Desktop core: compositor, terminal, screenshot, launcher, input test helper, seat and udev.
-sudo apk add --no-cache sway foot grim seatd eudev wtype fuzzel font-dejavu
+sudo apk add --no-cache sway foot grim seatd eudev wtype fuzzel gtk4.0 py3-gobject3 font-dejavu
 # Default apps: text editor, file browser, and a plain-text fallback editor.
 sudo apk add --no-cache micro ranger nano
 sudo rc-update add udev default >/dev/null 2>&1 || true
