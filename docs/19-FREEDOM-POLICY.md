@@ -28,3 +28,22 @@ Each session writes a `policy` event to its audit log with the roots in force.
 
 `Alt+g` opens `/ai/bin/activity`. It shows the write roots in force and the most recent audit
 events from all sessions, with tool arguments never shown. It only reads the logs.
+
+## Desktop checkpoints
+
+`checkpoint` (`ai/desktop/bin/checkpoint`, installed as `/ai/bin/checkpoint`):
+
+- `checkpoint create TAG` saves apps, bin, lib, desktop, the policy, and the foot and fuzzel configs
+  to `/ai/checkpoints/desktop/TAG.tar.gz`, with a SHA-256 and a time stamp.
+- `checkpoint rollback TAG` checks the checksum, saves the current state first as
+  `pre-rollback-<time>`, then replaces those directories with the saved copy. It asks for a yes
+  unless `-y` is given.
+- It does not touch `/ai/state` (sessions, mail, notes, models), `/ai/secrets`, or the v1
+  checkpoints.
+
+Verified in the guest: a marker file added after `t2` was gone after the rollback, `aios` still
+worked, a bad tag was refused, and the pre-rollback archive held the marker.
+
+Limit: a rollback removes files added after TAG in the restored directories. The
+pre-rollback checkpoint is the way back from that.
+

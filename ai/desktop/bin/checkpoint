@@ -1,0 +1,86 @@
+#!/bin/sh
+# Desktop checkpoints: save and restore the parts of the desktop that the AI and the user change.
+#   checkpoint create TAG          save apps, bin, lib, desktop, policy, and the foot/fuzzel configs
+#   checkpoint list                list saved checkpoints
+#   checkpoint rollback TAG [-y]   restore TAG; first saves the current state as pre-rollback-<time>
+#
+# Not included, so a rollback never touches them: /ai/state (sessions, mail, notes, models),
+# /ai/secrets, and the v1 checkpoints. A rollback removes files added after TAG in the restored
+# directories, which is why the pre-rollback checkpoint is made first.
+set -eu
+DIR=/ai/checkpoints/desktop
+mkdir -p "$DIR"
+
+stage_into() {
+  # Copy the desktop state into $1 (a fresh directory).
+  mkdir -p "$1/ai" "$1/home/.config"
+  for d in apps bin lib desktop; do
+    [ -e "/ai/$d" ] && cp -R "/ai/$d" "$1/ai/" || true
+  done
+  [ -f /ai/policy.json ] && cp /ai/policy.json "$1/ai/" || true
+  for d in foot fuzzel; do
+    [ -e "$HOME/.config/$d" ] && cp -R "$HOME/.config/$d" "$1/home/.config/" || true
+  done
+}
+
+create() {
+  ctag="$1"
+  case "$ctag" in ''|*[!A-Za-z0-9._-]*) echo "checkpoint: use letters, digits, dot, dash, underscore" >&2; exit 2 ;; esac
+  out="$DIR/$ctag.tar.gz"
+  [ ! -e "$out" ] || { echo "checkpoint: $ctag already exists" >&2; exit 1; }
+  stage=$(mktemp -d); trap 'rm -rf "$stage"' EXIT
+  stage_into "$stage"
+  tar -czf "$out" -C "$stage" .
+  sha256sum "$out" | cut -d' ' -f1 > "$DIR/$ctag.sha256"
+  date -u +%Y-%m-%dT%H:%M:%SZ > "$DIR/$ctag.created"
+  echo "saved desktop checkpoint $ctag ($(du -h "$out" | cut -f1))"
+}
+
+list() {
+  for f in "$DIR"/*.tar.gz; do
+    [ -e "$f" ] || { echo "no desktop checkpoints yet"; return 0; }
+    tag=$(basename "$f" .tar.gz)
+    echo "$tag  $(cat "$DIR/$tag.created" 2>/dev/null || echo unknown time)"
+  done
+}
+
+rollback() {
+  rtag="$1"; assume_yes="${2:-}"
+  archive="$DIR/$rtag.tar.gz"
+  [ -f "$archive" ] || { echo "checkpoint: no checkpoint named $rtag" >&2; exit 1; }
+  expected=$(cat "$DIR/$rtag.sha256" 2>/dev/null || echo "")
+  actual=$(sha256sum "$archive" | cut -d' ' -f1)
+  [ "$expected" = "$actual" ] || { echo "checkpoint: $rtag failed its checksum; not restoring" >&2; exit 1; }
+  if [ "$assume_yes" != "-y" ]; then
+    printf 'Roll back the desktop to %s? Current apps, bin, lib, desktop, and policy are replaced. [y/N] ' "$rtag"
+    read -r answer || answer=""
+    case "$answer" in y|Y|yes) ;; *) echo "cancelled"; exit 1 ;; esac
+  fi
+  pre="pre-rollback-$(date -u +%Y%m%dT%H%M%SZ)"
+  create "$pre"
+  stage=$(mktemp -d); trap 'rm -rf "$stage"' EXIT
+  tar -xzf "$archive" -C "$stage"
+  for d in apps bin lib desktop; do
+    if [ -e "$stage/ai/$d" ]; then
+      sudo rm -rf "/ai/$d"
+      sudo cp -a "$stage/ai/$d" "/ai/$d"
+    fi
+  done
+  [ -f "$stage/ai/policy.json" ] && sudo cp -a "$stage/ai/policy.json" /ai/policy.json || true
+  for d in foot fuzzel; do
+    [ -e "$stage/home/.config/$d" ] || continue
+    mkdir -p "$HOME/.config"
+    rm -rf "$HOME/.config/$d"
+    cp -a "$stage/home/.config/$d" "$HOME/.config/$d"
+  done
+  if [ -n "${SWAYSOCK:-}" ] && command -v swaymsg >/dev/null 2>&1; then swaymsg reload >/dev/null 2>&1 || true; fi
+  echo "rolled back to $rtag. Before this, the state was saved as $pre."
+  echo "Not changed: /ai/state (sessions, mail, notes), /ai/secrets, and v1 checkpoints."
+}
+
+case "${1:-}" in
+  create) [ $# -eq 2 ] || { echo "usage: checkpoint create TAG" >&2; exit 2; }; create "$2" ;;
+  list) list ;;
+  rollback) [ $# -ge 2 ] || { echo "usage: checkpoint rollback TAG [-y]" >&2; exit 2; }; rollback "$2" "${3:-}" ;;
+  *) echo "usage: checkpoint create TAG | list | rollback TAG [-y]" >&2; exit 2 ;;
+esac
