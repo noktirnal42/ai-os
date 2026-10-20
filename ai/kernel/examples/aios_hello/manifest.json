@@ -1,0 +1,6 @@
+{
+  "name": "aios_hello",
+  "version": "0.1",
+  "description": "Example staged module that logs on load and unload. No hardware, no other kernel state.",
+  "license": "GPL"
+}

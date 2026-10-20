@@ -47,3 +47,26 @@ worked, a bad tag was refused, and the pre-rollback archive held the marker.
 Limit: a rollback removes files added after TAG in the restored directories. The
 pre-rollback checkpoint is the way back from that.
 
+## Kernel-change staging (`kstage`)
+
+`ai/kernel/bin/kstage`, installed as `/ai/bin/kstage`. The flow for a kernel module:
+
+1. `kstage build NAME` compiles the source in `/ai/kernel/src/NAME` in a separate build directory
+   against the running kernel's headers, then runs the module's acceptance test (`tests/run.sh`),
+   which checks the module's identity and that it matches the running kernel. It does not load it.
+2. `kstage request NAME` records a load request (path, SHA-256, vermagic) only after a passing
+   build and test, and only for the running kernel.
+3. `kstage load NAME` loads the module only if the file still matches the request hash and a
+   human answers yes. Every decision goes to `/ai/state/kernel.log`.
+4. `kstage unload NAME` unloads it, and the action is logged.
+
+The agent can run steps 1 and 2. Step 3 needs a human at a terminal.
+
+**Current blocker (2026-10-20):** the guest runs kernel `6.12.110-0-virt`, and the package
+repository now offers `linux-virt-dev` 6.12.112. Installing that would give headers that do not
+match the running kernel, so `kstage build` refuses with a clear message (exit 3). Two ways out,
+both needing a decision: upgrade the guest kernel to match the headers (a reboot and a change to
+the VM, to be flagged in `docs/13`), or wait until the repository carries headers for 6.12.110.
+Verified so far: the refusal paths and the human gate (declined, and a changed file refused). No
+module has been built or loaded.
+

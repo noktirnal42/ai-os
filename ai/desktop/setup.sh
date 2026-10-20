@@ -30,3 +30,7 @@ fi
 # Freedom policy: the default file narrows nothing. It can only remove write roots (see docs/19).
 [ -f /ai/policy.json ] || cp /ai/desktop/policy/policy.json /ai/policy.json
 
+# Kernel staging: the tool and the example module source. Building needs linux-virt-dev for the
+# running kernel; this script does not install it, because a mismatched header package cannot build.
+sudo install -m 755 /ai/kernel/bin/kstage /ai/bin/kstage 2>/dev/null || true
+
