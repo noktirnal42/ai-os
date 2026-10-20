@@ -193,6 +193,26 @@ class HarnessTests(unittest.TestCase):
         self.assertEqual(verdict["kind"], "partial")
         self.assertFalse(verdict["verified"])
 
+    def test_install_verdict_comes_from_acceptance_tests_not_model_wording(self):
+        self.prepare_app("verdict-app", "exit 0\n")
+        class FakeClient:
+            offline = False
+            def __init__(self): self.calls = 0
+            def chat(self, messages, tools):
+                self.calls += 1
+                if self.calls == 1:
+                    args = {"op": "install", "name": "verdict-app"}
+                    return {"choices": [{"message": {"role": "assistant", "content": "", "tool_calls": [{"id": "1", "function": {"name": "registry", "arguments": json.dumps(args)}}]}}]}
+                return {"choices": [{"message": {"role": "assistant", "content": "I am not sure it worked."}}]}
+        session = aios.Session("install it", FakeClient(), max_tools=4, max_seconds=5)
+        with mock.patch.object(session, "ask_human", return_value={"approved": True}):
+            self.assertEqual(session.run(), 0)
+        self.assertIn("verdict-app", session.verified_installs)
+        rows = [json.loads(line) for line in session.log.path.read_text().splitlines()]
+        verdict = next(row for row in rows if row["ev"] == "verdict")
+        self.assertEqual(verdict["kind"], "succeeded")
+        self.assertTrue(verdict["verified"])
+
     def test_required_command_nudges_early_final_and_verifies_success(self):
         root = self.root
         command = "printf REQUIRED_TEST_OK"

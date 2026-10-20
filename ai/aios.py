@@ -291,6 +291,7 @@ class Session:
     sid: str = field(default_factory=lambda: time.strftime("%Y%m%dT%H%M%SZ") + "-" + uuid.uuid4().hex[:8])
     tool_count: int = 0
     registry_ops: int = 0
+    verified_installs: set[str] = field(default_factory=set)
     started: float = field(default_factory=time.monotonic)
     processes: set[int] = field(default_factory=set)
     verified_commands: set[str] = field(default_factory=set)
@@ -460,6 +461,7 @@ class Session:
                 raise RuntimeError(f"app acceptance tests failed (exit {tests.returncode}): {output}")
             installed = dict(manifest); installed["tests_pass"] = True
             current[name] = installed
+            self.verified_installs.add(name)
         path.parent.mkdir(parents=True, exist_ok=True); path.write_text(json.dumps(current, indent=2, sort_keys=True) + "\n"); return {"registry": current}
 
     def checkpoint(self, args: dict[str, Any]) -> dict[str, Any]:
@@ -609,6 +611,10 @@ class Session:
                     continue
                 if self.required_commands and not missing:
                     self.log.emit("verdict", kind="succeeded", verified=True, required_commands=list(self.required_commands))
+                    return 0
+                if self.verified_installs and not self.required_commands:
+                    # Install verdicts come from the acceptance tests, not from the model's wording.
+                    self.log.emit("verdict", kind="succeeded", verified=True, installed=sorted(self.verified_installs))
                     return 0
                 self.log.emit("verdict", kind="partial", verified=False, note="model returned without tool calls; completion was not independently verified")
                 return 0

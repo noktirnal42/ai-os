@@ -6,6 +6,7 @@ import curses
 import json
 import os
 import pathlib
+import re
 import select
 import signal
 import subprocess
@@ -28,7 +29,7 @@ TOOL_LABELS = {
     "net": "Checking emulated network status",
 }
 
-COMMANDS = ["/build", "/chat", "/clear", "/do", "/exit", "/help", "/history", "/model", "/provider", "/providers", "/quit", "/stream", "/status", "/retry", "/run", "/ok"]
+COMMANDS = ["/build", "/chat", "/clear", "/do", "/exit", "/help", "/history", "/install", "/model", "/provider", "/providers", "/quit", "/stream", "/status", "/retry", "/run", "/ok"]
 def complete_command(prefix: str) -> list[str]:
     return [c for c in COMMANDS if c.startswith(prefix)]
 
@@ -280,6 +281,7 @@ class Console:
         self.add("AI OS console help", C_HEADER)
         self.add("  Type a question and Enter to chat. F2 (or /do) switches to Do mode for bounded tool work.")
         self.add("  F3 or /model \u2014 pick a provider and model. /stream \u2014 toggle streaming responses.")
+        self.add("  /install NAME \u2014 install an app directly: tests run after your approval, no model involved.")
         self.add("  /clear clears the transcript; /history lists your previous commands.", C_DIM)
         self.add("  /status shows the console state; /retry re-runs your last prompt.", C_DIM)
         self.add("  /run <cmd> stages a guest shell command; /ok confirms, anything else cancels.", C_DIM)
@@ -362,13 +364,14 @@ class Console:
 
     # ---------- task execution ----------
 
-    def run_child(self, prompt: str) -> None:
+    def run_child(self, prompt: str, args: list[str] | None = None) -> None:
         self.last_verdict = None
         self.actions_taken = False
         self.stream_partial = ""
         self.stream_active = False
         self.pending_gate = None
-        args = command_for(self.mode, prompt)
+        direct = args is not None
+        args = args if direct else command_for(self.mode, prompt)
         sessions_dir = AI_ROOT / "state" / "sessions"
         before = set(sessions_dir.glob("*.jsonl")) if sessions_dir.exists() else set()
         try:
@@ -570,7 +573,11 @@ class Console:
                     pass
                 child.wait()
         code = child.returncode
-        self.status = completion_status(self.mode, code, self.last_verdict, self.actions_taken)
+        if direct:
+            self.status = ("Install finished. See the result above." if code == 0
+                           else "Install did not complete. See the reason above.")
+        else:
+            self.status = completion_status(self.mode, code, self.last_verdict, self.actions_taken)
         if not output_lines and code not in (0, 2):
             self.add("No assistant response was returned. Check the model with F3 and try again.", C_ERROR)
         self.busy = False
@@ -688,6 +695,15 @@ class Console:
             self.add("Press Enter on /ok to execute, anything else cancels.", 7)
             return True
         
+        if lowered == "/install":
+            name = remainder.strip()
+            if not re.fullmatch(r"[A-Za-z0-9_.-]+", name):
+                self.add("Usage: /install NAME (an app in /ai/apps with a passing test).", C_WARN)
+                return True
+            self.add("Install " + name + ": the acceptance tests run after you approve.", C_HEADER)
+            self.run_child(prompt, [sys.executable, "-u", str(pathlib.Path(__file__).with_name("aios.py")), "registry", "install", name])
+            return True
+
         self.last_prompt = prompt
         self.add(("you \u203a " if self.mode == "chat" else "you [do] \u203a ") + prompt, C_USER)
         self.run_child(prompt)
