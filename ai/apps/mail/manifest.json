@@ -1,0 +1,8 @@
+{
+  "name": "mail",
+  "version": "0.1.0",
+  "entry": "/ai/bin/mail",
+  "lang": "python",
+  "tests": "/ai/apps/mail/tests/run.sh",
+  "capabilities": []
+}
