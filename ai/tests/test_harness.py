@@ -117,7 +117,7 @@ class HarnessTests(unittest.TestCase):
         with mock.patch.object(s, "ask_human", return_value={"approved": True}) as gate:
             result = s.call_tool("registry", {"op": "install", "name": "hello"})
         self.assertNotIn("error", result, result)
-        self.assertIn("acceptance test:", gate.call_args.args[0]["question"])
+        self.assertIn("Acceptance test:", gate.call_args.args[0]["question"])
         self.assertTrue(result["registry"]["hello"]["tests_pass"])
         rows = [json.loads(line) for line in s.log.path.read_text().splitlines()]
         self.assertTrue(any(row["ev"] == "tool_result" for row in rows))
@@ -400,6 +400,18 @@ class HarnessTests(unittest.TestCase):
         with mock.patch.object(s, "ask_human", return_value={"approved": True}):
             s.registry({"op": "remove", "name": "kept"})
         self.assertNotIn("kept", json.loads(registry.read_text()))
+
+    def test_install_prompt_shows_declared_capabilities_and_test_size(self):
+        self.prepare_app("shown", "exit 0\n")
+        manifest = self.root / "apps" / "shown" / "manifest.json"
+        data = json.loads(manifest.read_text()); data["capabilities"] = ["fs:/ai/state"]; manifest.write_text(json.dumps(data))
+        s = self.session()
+        with mock.patch.object(s, "ask_human", return_value={"approved": False}) as ask:
+            with self.assertRaises(PermissionError):
+                s.registry({"op": "install", "name": "shown"})
+        question = ask.call_args[0][0]["question"]
+        self.assertIn("Declared capabilities: fs:/ai/state", question)
+        self.assertIn("lines, network disabled", question)
 
     def test_model_cannot_remove_apps_or_see_remove_in_its_tools(self):
         self.prepare_app("kept", "exit 0\n")

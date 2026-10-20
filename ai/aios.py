@@ -442,7 +442,13 @@ class Session:
             tests_path = safe_path(manifest["tests"], (app_dir,))
             if tests_path != app_dir / "tests" / "run.sh" or not tests_path.is_file():
                 raise PermissionError("manifest tests must be /ai/apps/<name>/tests/run.sh")
-            approval = self.ask_human({"question": f"Approve registering {name} v{manifest['version']}? Entry: {entry_path}; acceptance test: {tests_path}. Tests will run with network disabled."})
+            declared = manifest.get("capabilities", [])
+            caps_text = ", ".join(str(c) for c in declared) if isinstance(declared, list) and declared else "none declared"
+            try:
+                test_lines = len(tests_path.read_text(errors="replace").splitlines())
+            except OSError:
+                test_lines = 0
+            approval = self.ask_human({"question": f"Approve registering {name} v{manifest['version']}? Declared capabilities: {caps_text}. Acceptance test: {tests_path} ({test_lines} lines, network disabled). Entry: {entry_path}."})
             if not approval.get("approved"):
                 raise PermissionError("app install was not approved by the human")
             env = {**os.environ, "HOME": "/ai"}
