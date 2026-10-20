@@ -275,7 +275,6 @@ TOOLS = [
     {"type": "function", "function": {"name": "proc", "description": "List or kill a process started by this session.", "parameters": {"type": "object", "properties": {"op": {"enum": ["list", "kill"]}, "pid": {"type": "integer"}}, "required": ["op"]}}},
     {"type": "function", "function": {"name": "registry", "description": "Query or remove an app registry entry. Install reads /ai/apps/<name>/manifest.json, verifies its /ai/bin entry, runs its acceptance script with network disabled, and registers only on success.", "parameters": {"type": "object", "properties": {"op": {"enum": ["install", "remove", "query"]}, "name": {"type": "string"}}, "required": ["op", "name"]}}},
     {"type": "function", "function": {"name": "checkpoint", "description": "Create, rollback, or list an AI workspace checkpoint.", "parameters": {"type": "object", "properties": {"op": {"enum": ["create", "rollback", "list"]}, "tag": {"type": "string"}}, "required": ["op"]}}},
-    {"type": "function", "function": {"name": "ask_human", "description": "Request an explicit human decision.", "parameters": {"type": "object", "properties": {"question": {"type": "string"}, "options": {"type": "array", "items": {"type": "string"}}}, "required": ["question"]}}},
     {"type": "function", "function": {"name": "net", "description": "Read emulated network interface and route state into /ai/state/net.json. Read-only; does not configure networking.", "parameters": {"type": "object", "properties": {"op": {"enum": ["status"]}}, "required": ["op"]}}},
 ]
 
@@ -338,7 +337,7 @@ class Session:
                 self.registry_ops += 1
                 out = self.registry(args)
             elif name == "checkpoint": out = self.checkpoint(args)
-            elif name == "ask_human": out = self.ask_human(args)
+            elif name == "ask_human": raise PermissionError("approvals are requested by the harness, not by the model")
             elif name == "net": out = self.net(args)
             else: raise ValueError(f"unknown tool: {name}")
         except Exception as exc: out = {"error": str(exc)}
@@ -418,7 +417,12 @@ class Session:
         name = args["name"]
         if not isinstance(name, str) or not re.fullmatch(r"[A-Za-z0-9_.-]+", name): raise ValueError("unsafe app name")
         if args["op"] == "query": return {"app": current.get(name)}
-        if args["op"] == "remove": current.pop(name, None)
+        if args["op"] == "remove":
+            if name in current:
+                approval = self.ask_human({"question": f"Approve removing {name} from the app registry? Its files stay on disk."})
+                if not approval.get("approved"):
+                    raise PermissionError("app removal was not approved by the human")
+            current.pop(name, None)
         else:
             app_dir = (AI_ROOT / "apps" / name).resolve()
             manifest_path = safe_path(str(app_dir / "manifest.json"), (AI_ROOT / "apps",))

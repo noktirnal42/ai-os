@@ -359,4 +359,28 @@ class HarnessTests(unittest.TestCase):
         self.assertTrue(registry["piped"]["tests_pass"])
 
 
+    def test_model_cannot_request_approvals_itself(self):
+        s = self.session()
+        names = [t["function"]["name"] for t in aios.TOOLS]
+        self.assertNotIn("ask_human", names)
+        result = s.call_tool("ask_human", {"question": "Install anything?"})
+        self.assertIn("error", result)
+        self.assertIn("harness", result["error"])
+
+    def test_registry_remove_requires_human_approval(self):
+        self.prepare_app("kept", "exit 0\n")
+        registry = self.root / "state" / "registry.json"
+        registry.parent.mkdir(parents=True, exist_ok=True)
+        registry.write_text(json.dumps({"kept": {"name": "kept", "version": "0.1.0"}}))
+        s = self.session()
+        with mock.patch.object(s, "ask_human", return_value={"approved": False}):
+            result = s.call_tool("registry", {"op": "remove", "name": "kept"})
+        self.assertIn("error", result)
+        self.assertIn("kept", json.loads(registry.read_text()))
+        with mock.patch.object(s, "ask_human", return_value={"approved": True}):
+            result = s.call_tool("registry", {"op": "remove", "name": "kept"})
+        self.assertNotIn("error", result)
+        self.assertNotIn("kept", json.loads(registry.read_text()))
+
+
 if __name__ == "__main__": unittest.main()
