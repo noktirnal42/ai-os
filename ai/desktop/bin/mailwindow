@@ -186,6 +186,22 @@ def run_window(mail):
                 self.status.set_text("Queued in Outbox")
 
             send.connect("clicked", queue)
+
+            # Tab in the body moves focus out instead of inserting a tab character.
+            body_keys = Gtk.EventControllerKey()
+            body_keys.set_propagation_phase(Gtk.PropagationPhase.CAPTURE)
+
+            def on_body_key(_controller, keyval, _keycode, state):
+                if keyval == Gdk.KEY_Tab:
+                    send.grab_focus()
+                    return True
+                if keyval == Gdk.KEY_ISO_Left_Tab:
+                    subject.grab_focus()
+                    return True
+                return False
+
+            body_keys.connect("key-pressed", on_body_key)
+            body.add_controller(body_keys)
             dialog.present()
 
     class App(Gtk.Application):
