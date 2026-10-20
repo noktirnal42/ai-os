@@ -4,9 +4,9 @@
 # Keyboard and tablet come from the VM's virtio devices via udev and libinput.
 set -eu
 RT="/tmp/xdg-$(id -u)"
-CONF="${1:-/tmp/sway-screen.conf}"
+CONF="${1:-/ai/desktop/sway-screen.conf}"
 mkdir -p "$RT"; chmod 700 "$RT"
-[ -f "$CONF" ] || printf 'exec foot\n' > "$CONF"
+[ -f "$CONF" ] || { echo "missing $CONF"; exit 1; }
 pkill -x sway 2>/dev/null || true
 sleep 1
 (XDG_RUNTIME_DIR="$RT" WLR_RENDERER=pixman LIBSEAT_BACKEND=seatd \
