@@ -1,0 +1,8 @@
+#!/bin/sh
+# Calculator window: type an expression and press Enter. An empty line closes it.
+# Uses the calc app (/ai/bin/calc), which supports + - * / ^ and parentheses.
+echo "AI OS calculator. Examples: 2^10   (3+4)*2   1/3.  Empty line to close."
+while printf '> ' && IFS= read -r expr; do
+  [ -n "$expr" ] || break
+  /ai/bin/calc "$expr" || true
+done
