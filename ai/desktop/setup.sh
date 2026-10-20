@@ -18,6 +18,10 @@ sudo addgroup ai input 2>/dev/null || true
 mkdir -p "$HOME/.config/foot"
 [ -f "$HOME/.config/foot/foot.ini" ] || printf '[main]\nfont=monospace:size=12\n' > "$HOME/.config/foot/foot.ini"
 
+# Launcher and menu look: a readable size for the virtual display.
+mkdir -p "$HOME/.config/fuzzel"
+[ -f "$HOME/.config/fuzzel/fuzzel.ini" ] || printf '[main]\nfont=monospace:size=12\nwidth=40\nlines=12\n' > "$HOME/.config/fuzzel/fuzzel.ini"
+
 # Install the desktop helper commands (welcome, tutorial) into /ai/bin when they are present.
 if [ -d /ai/desktop/bin ]; then
   for f in /ai/desktop/bin/*; do sudo install -m 755 "$f" "/ai/bin/$(basename "$f")"; done

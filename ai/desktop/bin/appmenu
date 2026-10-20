@@ -1,0 +1,31 @@
+#!/bin/sh
+# App menu for AI OS: pick an app by name. Alt+Space opens it.
+set -eu
+PICK=$(printf '%s\n' \
+  "Chat with AI OS" \
+  "Console (Do mode)" \
+  "Mail" \
+  "Calculator" \
+  "Notes tutorial" \
+  "Settings" \
+  "Files" \
+  "Text editor" \
+  "Terminal" \
+  "Welcome" \
+  "Log out" \
+  | fuzzel --dmenu --prompt "Apps > " --font=monospace:size=10 --width=36 --lines=12 || true)
+
+case "$PICK" in
+  "Chat with AI OS") exec /ai/bin/chatwindow ;;
+  "Console (Do mode)") exec foot -e /ai/bin/aios tui ;;
+  "Mail") exec /ai/bin/mailwindow ;;
+  "Calculator") exec foot -e /ai/bin/calcview ;;
+  "Notes tutorial") exec foot -e /ai/bin/tutorial ;;
+  "Settings") exec foot -e /ai/bin/settings ;;
+  "Files") exec foot -e ranger ;;
+  "Text editor") exec foot -e micro ;;
+  "Terminal") exec foot ;;
+  "Welcome") exec foot -e /ai/bin/welcome ;;
+  "Log out") exec swaymsg exit ;;
+  *) exit 0 ;;
+esac

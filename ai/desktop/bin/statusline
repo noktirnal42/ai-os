@@ -1,0 +1,8 @@
+#!/bin/sh
+# Top bar text for sway: the model in use, free memory, and the time. Updates every 5 seconds.
+while :; do
+  MODEL=$(sed -n 's/.*"model": *"\([^"]*\)".*/\1/p' /ai/state/model.json 2>/dev/null | head -1)
+  MEM=$(awk '/MemAvailable/ {printf "%d MB free", $2/1024}' /proc/meminfo)
+  echo "AI OS   model ${MODEL:-none}   ${MEM}   $(date '+%a %d %b  %H:%M')"
+  sleep 5
+done
