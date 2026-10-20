@@ -374,13 +374,25 @@ class HarnessTests(unittest.TestCase):
         registry.write_text(json.dumps({"kept": {"name": "kept", "version": "0.1.0"}}))
         s = self.session()
         with mock.patch.object(s, "ask_human", return_value={"approved": False}):
+            with self.assertRaises(PermissionError):
+                s.registry({"op": "remove", "name": "kept"})
+        self.assertIn("kept", json.loads(registry.read_text()))
+        with mock.patch.object(s, "ask_human", return_value={"approved": True}):
+            s.registry({"op": "remove", "name": "kept"})
+        self.assertNotIn("kept", json.loads(registry.read_text()))
+
+    def test_model_cannot_remove_apps_or_see_remove_in_its_tools(self):
+        self.prepare_app("kept", "exit 0\n")
+        registry = self.root / "state" / "registry.json"
+        registry.parent.mkdir(parents=True, exist_ok=True)
+        registry.write_text(json.dumps({"kept": {"name": "kept", "version": "0.1.0"}}))
+        schema = next(t["function"] for t in aios.TOOLS if t["function"]["name"] == "registry")
+        self.assertEqual(schema["parameters"]["properties"]["op"]["enum"], ["install", "query"])
+        s = self.session()
+        with mock.patch.object(s, "ask_human", return_value={"approved": True}):
             result = s.call_tool("registry", {"op": "remove", "name": "kept"})
         self.assertIn("error", result)
         self.assertIn("kept", json.loads(registry.read_text()))
-        with mock.patch.object(s, "ask_human", return_value={"approved": True}):
-            result = s.call_tool("registry", {"op": "remove", "name": "kept"})
-        self.assertNotIn("error", result)
-        self.assertNotIn("kept", json.loads(registry.read_text()))
 
 
 if __name__ == "__main__": unittest.main()

@@ -273,7 +273,7 @@ TOOLS = [
     {"type": "function", "function": {"name": "fs_read", "description": "Read an allowed AI OS file slice.", "parameters": {"type": "object", "properties": {"path": {"type": "string"}, "offset": {"type": "integer"}, "max_bytes": {"type": "integer"}}, "required": ["path"]}}},
     {"type": "function", "function": {"name": "fs_write", "description": "Write an allowed AI OS file.", "parameters": {"type": "object", "properties": {"path": {"type": "string"}, "content": {"type": "string"}, "mode": {"enum": ["overwrite", "append"]}}, "required": ["path", "content"]}}},
     {"type": "function", "function": {"name": "proc", "description": "List or kill a process started by this session.", "parameters": {"type": "object", "properties": {"op": {"enum": ["list", "kill"]}, "pid": {"type": "integer"}}, "required": ["op"]}}},
-    {"type": "function", "function": {"name": "registry", "description": "Query or remove an app registry entry. Install reads /ai/apps/<name>/manifest.json, verifies its /ai/bin entry, runs its acceptance script with network disabled, and registers only on success.", "parameters": {"type": "object", "properties": {"op": {"enum": ["install", "remove", "query"]}, "name": {"type": "string"}}, "required": ["op", "name"]}}},
+    {"type": "function", "function": {"name": "registry", "description": "Query or install an app registry entry. Install reads /ai/apps/<name>/manifest.json, verifies its /ai/bin entry, runs its acceptance script with network disabled, and registers only on success.", "parameters": {"type": "object", "properties": {"op": {"enum": ["install", "query"]}, "name": {"type": "string"}}, "required": ["op", "name"]}}},
     {"type": "function", "function": {"name": "checkpoint", "description": "Create, rollback, or list an AI workspace checkpoint.", "parameters": {"type": "object", "properties": {"op": {"enum": ["create", "rollback", "list"]}, "tag": {"type": "string"}}, "required": ["op"]}}},
     {"type": "function", "function": {"name": "net", "description": "Read emulated network interface and route state into /ai/state/net.json. Read-only; does not configure networking.", "parameters": {"type": "object", "properties": {"op": {"enum": ["status"]}}, "required": ["op"]}}},
 ]
@@ -334,6 +334,7 @@ class Session:
             elif name == "fs_write": out = self.fs_write(args)
             elif name == "proc": out = self.proc(args)
             elif name == "registry":
+                if args.get("op") == "remove": raise PermissionError("the model cannot remove apps; removal is a human CLI action")
                 self.registry_ops += 1
                 out = self.registry(args)
             elif name == "checkpoint": out = self.checkpoint(args)
