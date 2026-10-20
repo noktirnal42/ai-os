@@ -258,3 +258,21 @@ Acceptance evidence and remaining limits are recorded in
 - **Next, if upgrading:** investigate the initramfs for 6.12.113 (root device and virtio modules)
   from a rescue shell, not by repeated reboots. Record the working kernel in this file.
 
+### 2026-10-20 — guest kernel 6.12.113 (follow-up; the upgrade now works)
+
+- **Cause of the earlier failure:** `apk upgrade linux-virt` replaced `/boot/vmlinuz-virt` but not
+  `/boot/initramfs-virt`. The GRUB entry loads that initramfs with the new kernel, and it only held
+  the 6.12.110 modules. The new kernel could not find the block driver, so root mount failed. This
+  was read from the initramfs contents, not guessed.
+- **Fix:** `sudo mkinitfs -o /boot/initramfs-virt 6.12.113-0-virt`. The old initramfs is kept as
+  `/boot/initramfs-virt.6.12.110.bak`.
+- **Result:** the VM boots 6.12.113 with root mounted, `/dev/dri/card0` is present, the desktop starts,
+  and `kstage build aios_hello` builds and passes its test against the running kernel. The module was
+  requested for a human load but not loaded.
+- **Procedure for future kernel upgrades:** after `apk upgrade linux-virt linux-virt-dev`, run
+  `sudo mkinitfs -o /boot/initramfs-virt <new-version>` before rebooting, then boot and check
+  `uname -r`. Keep a `vm.sh snapshot` before the upgrade.
+- **Open:** why the package post-install does not regenerate the initramfs on this image. Not
+  investigated further.
+- **VM definition:** unchanged in `emulation/vm.sh` and `vm.conf`.
+
