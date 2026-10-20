@@ -13,8 +13,9 @@ cat <<'TXT'
     Alt+q       close the focused window
     Alt+Shift+e log out of the desktop
 
-  Next: build your first app. Inside the AI OS shell run:
-    aios ask "what can you build for me?"
+  Next: build your first app. In this terminal run:
+    tutorial
+  It walks you through a notes app: build, test, then approve the install.
 
   Press Enter to start a shell.
 TXT
