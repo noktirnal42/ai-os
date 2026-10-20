@@ -25,6 +25,7 @@ Message fields: id, folder, from, to, subject, date, body, read.
 from __future__ import annotations
 
 import argparse
+import datetime
 import email
 import email.utils
 import json
@@ -107,6 +108,21 @@ def require_message(store, msg_id):
     return message
 
 
+def message_date(item):
+    """Date header, or the mbox envelope date when the header is missing."""
+    header = str(item.get("Date", "")).strip()
+    if header:
+        return header
+    envelope = (item.get_from() or "").split(None, 1)
+    if len(envelope) < 2:
+        return ""
+    try:
+        parsed = datetime.datetime.strptime(envelope[1], "%a %b %d %H:%M:%S %Y")
+    except ValueError:
+        return envelope[1]
+    return email.utils.format_datetime(parsed.replace(tzinfo=datetime.timezone.utc))
+
+
 def parse_mbox(path):
     """Yield normalized message dicts from an mbox file."""
     if not os.path.isfile(path):
@@ -138,7 +154,7 @@ def parse_mbox(path):
                 "from": str(item.get("From", "")).strip(),
                 "to": str(item.get("To", "")).strip(),
                 "subject": str(item.get("Subject", "")).strip(),
-                "date": str(item.get("Date", "")).strip(),
+                "date": message_date(item),
                 "body": body,
                 "read": False,
             })

@@ -36,6 +36,10 @@ OUT=$(/ai/bin/mail import "$FIXTURE")
 OUT=$(/ai/bin/mail stats)
 [ "$OUT" = "INBOX: 3 unread / 3 total" ] || { echo "stats failed: $OUT"; exit 1; }
 
+# 2b. Imported messages without a Date header use the mbox envelope date.
+SHOW1=$(/ai/bin/mail show 1)
+echo "$SHOW1" | grep -q "^Date:    .*19 Oct 2026 09:00:00" || { echo "envelope date missing: $SHOW1"; exit 1; }
+
 # 3. List shows all three INBOX messages, all unread (U flags).
 LIST=$(/ai/bin/mail list)
 echo "$LIST" | grep -q "alice@example.com" || { echo "list missing alice"; exit 1; }
