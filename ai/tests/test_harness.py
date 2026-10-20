@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
+import io
 import json
 import curses
 import os
+import subprocess
 import pathlib
 import tempfile
 import unittest
@@ -318,6 +320,43 @@ class HarnessTests(unittest.TestCase):
         self.assertEqual(aios.session_goal_from_log("sid-abc"), "write the browser")
         self.assertIsNone(aios.session_goal_from_log("missing-sid"))
         self.assertIsNone(aios.session_goal_from_log("../escape"))
+
+
+    def test_ask_human_reads_one_answer_and_logs_the_request(self):
+        s = self.session()
+        with mock.patch("sys.stdin", io.StringIO("yes\n")), mock.patch("sys.stderr", io.StringIO()):
+            self.assertEqual(s.ask_human({"question": "Install?"}), {"approved": True})
+        rows = [json.loads(line) for line in (self.root / "state" / "sessions").glob("*.jsonl").__next__().read_text().splitlines()]
+        self.assertEqual([r["ev"] for r in rows if r["ev"].startswith("gate")], ["gate_request", "gate"])
+
+    def test_ask_human_denies_when_no_one_can_answer(self):
+        s = self.session()
+        with mock.patch("sys.stdin", io.StringIO("")), mock.patch("sys.stderr", io.StringIO()):
+            self.assertEqual(s.ask_human({"question": "Install?"})["approved"], False)
+
+    def test_tui_gate_keys_map_to_the_harness_answer_line(self):
+        self.assertEqual(aios_tui.gate_answer("y"), b"y\n")
+        self.assertEqual(aios_tui.gate_answer("Y"), b"y\n")
+        self.assertEqual(aios_tui.gate_answer("\n"), b"n\n")
+        self.assertEqual(aios_tui.gate_answer(13), b"n\n")
+        self.assertEqual(aios_tui.gate_answer("n"), b"n\n")
+        self.assertIsNone(aios_tui.gate_answer("x"))
+        self.assertIsNone(aios_tui.gate_answer(-1))
+
+    def test_registry_install_through_a_pipe_needs_a_yes_and_nothing_else(self):
+        self.prepare_app("piped", "exit 0\n")
+        script = pathlib.Path(aios.__file__)
+        env = {**os.environ, "AIOS_ROOT": str(self.root)}
+        denied = subprocess.run([sys.executable, str(script), "registry", "install", "piped"],
+                                input="", text=True, capture_output=True, env=env)
+        self.assertNotEqual(denied.returncode, 0)
+        self.assertIn("not approved", denied.stderr)
+        self.assertFalse((self.root / "state" / "registry.json").exists())
+        approved = subprocess.run([sys.executable, str(script), "registry", "install", "piped"],
+                                  input="y\n", text=True, capture_output=True, env=env)
+        self.assertEqual(approved.returncode, 0, approved.stderr)
+        registry = json.loads((self.root / "state" / "registry.json").read_text())
+        self.assertTrue(registry["piped"]["tests_pass"])
 
 
 if __name__ == "__main__": unittest.main()

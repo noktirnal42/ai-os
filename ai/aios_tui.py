@@ -107,6 +107,18 @@ def command_for(mode: str, prompt: str) -> list[str]:
     return [sys.executable, "-u", str(script), "ask", prompt]
 
 
+def gate_answer(key: Any) -> bytes | None:
+    """Map a keypress at an approval prompt to the answer line the harness reads.
+
+    Enter and anything other than y/yes means no, matching the [y/N] default.
+    """
+    if key in ("y", "Y"):
+        return b"y\n"
+    if key in ("n", "N", "\n", 13):
+        return b"n\n"
+    return None
+
+
 def input_character(key: Any) -> str | None:
     return key if isinstance(key, str) and len(key) == 1 and key.isprintable() else None
 def is_enter_key(key: Any) -> bool:
@@ -167,6 +179,7 @@ class Console:
         self.history_index: int | None = None
         self.last_prompt: str = ""
         self.pending_run: str | None = None
+        self.pending_gate: dict[str, Any] | None = None
         
         # Persistent history
         hist = load_history(history_path())
@@ -354,11 +367,12 @@ class Console:
         self.actions_taken = False
         self.stream_partial = ""
         self.stream_active = False
+        self.pending_gate = None
         args = command_for(self.mode, prompt)
         sessions_dir = AI_ROOT / "state" / "sessions"
         before = set(sessions_dir.glob("*.jsonl")) if sessions_dir.exists() else set()
         try:
-            child = subprocess.Popen(args, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
+            child = subprocess.Popen(args, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
                                      stderr=subprocess.STDOUT, text=False, bufsize=0,
                                      env=self.child_env(), start_new_session=True)
         except OSError as exc:
@@ -382,6 +396,11 @@ class Console:
         output_lines = 0
 
         def announce(event: dict[str, Any]) -> None:
+            if event.get("ev") == "gate_request":
+                # The harness is blocked on one answer line; the next y/n keypress goes to it.
+                self.pending_gate = event
+                self.add(f"\u2022 Approval needed: {event.get('question', '')} (y/N)", C_WARN)
+                return
             message = event_message(event)
             if not message:
                 return
@@ -470,11 +489,23 @@ class Console:
             elapsed = int(time.monotonic() - self.progress_since)
             self.status = progress_status(self.progress_phase, self.progress_label,
                                           elapsed, self.model, self.model_timeout)
+            if self.pending_gate is not None:
+                self.status = "Approval needed: press y to approve, n or Enter to decline."
             self.draw()
             try:
                 key = self.screen.get_wch()
             except curses.error:
                 key = -1
+            if self.pending_gate is not None and (answer := gate_answer(key)) is not None:
+                try:
+                    assert child.stdin is not None
+                    child.stdin.write(answer)
+                    child.stdin.flush()
+                    self.add("\u2022 Answered " + ("yes" if answer == b"y\n" else "no"), C_OK if answer == b"y\n" else C_WARN)
+                except (BrokenPipeError, OSError, ValueError):
+                    self.add("Could not send the answer; the task has already stopped.", C_ERROR)
+                self.pending_gate = None
+                continue
             if key in (3, 27):
                 try:
                     os.killpg(child.pid, signal.SIGTERM)
@@ -491,6 +522,12 @@ class Console:
             elif key == curses.KEY_NPAGE:
                 self.scroll = max(0, self.scroll - 10)
 
+        self.pending_gate = None
+        if child.stdin is not None:
+            try:
+                child.stdin.close()
+            except OSError:
+                pass
         try:
             remainder = stream.read() or b""
         except (OSError, ValueError):

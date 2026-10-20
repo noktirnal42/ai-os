@@ -366,7 +366,7 @@ class Session:
             raise PermissionError("command rejected by Phase 0 filesystem safety policy")
         if NETWORK_COMMANDS.search(cmd) and os.environ.get("AIOS_ALLOW_NETWORK") != "1":
             raise PermissionError("network disabled for this Phase 0/1 session")
-        proc = subprocess.run(["/bin/sh", "-c", cmd], cwd=workdir, text=True, capture_output=True, timeout=timeout, env={**os.environ, "HOME": "/ai"})
+        proc = subprocess.run(["/bin/sh", "-c", cmd], cwd=workdir, text=True, capture_output=True, timeout=timeout, env={**os.environ, "HOME": "/ai"}, stdin=subprocess.DEVNULL)
         if proc.returncode == 0:
             # Credit a required command when the executed shell call contains it:
             # models often batch several required commands into one invocation.
@@ -379,7 +379,7 @@ class Session:
     def net(self, args: dict[str, Any]) -> dict[str, Any]:
         if args.get("op") != "status": raise ValueError("invalid net op")
         def read_json(command: list[str]) -> Any:
-            result = subprocess.run(command, text=True, capture_output=True, timeout=10, check=False)
+            result = subprocess.run(command, text=True, capture_output=True, timeout=10, check=False, stdin=subprocess.DEVNULL)
             if result.returncode != 0: raise RuntimeError(result.stderr.strip() or "network query failed")
             return json.loads(result.stdout or "[]")
         payload = {
@@ -444,7 +444,7 @@ class Session:
             started = time.monotonic()
             try:
                 tests = subprocess.run(["/bin/sh", str(tests_path)], cwd=app_dir, text=True,
-                                       capture_output=True, timeout=300, env=env)
+                                       capture_output=True, timeout=300, env=env, stdin=subprocess.DEVNULL)
             except subprocess.TimeoutExpired as exc:
                 self.log.emit("registry_test", app=name, exit="timeout", seconds=round(time.monotonic() - started, 3))
                 raise TimeoutError("app acceptance tests exceeded 300 seconds") from exc
@@ -474,11 +474,21 @@ class Session:
         raise ValueError("invalid checkpoint op")
 
     def ask_human(self, args: dict[str, Any]) -> dict[str, Any]:
+        # The gate announces itself in the audit log so a parent UI (the TUI) can
+        # prompt the human, then reads one answer line from stdin. The prompt goes
+        # to stderr so a human at a terminal sees it. EOF means nobody can answer,
+        # so the request is denied.
+        question = args["question"]
+        self.log.emit("gate_request", question=question, options=args.get("options") or [])
+        print(question + " [y/N] ", end="", file=sys.stderr, flush=True)
         try:
-            answer = input(args["question"] + " [y/N] ").strip().lower()
-        except (EOFError, OSError):
+            raw = sys.stdin.readline()
+        except (OSError, ValueError):
+            raw = ""
+        if raw == "":
             return {"approved": False, "reason": "non-interactive session"}
-        self.log.emit("gate", question=args["question"], human=answer)
+        answer = raw.strip().lower()
+        self.log.emit("gate", question=question, human=answer)
         return {"approved": answer in {"y", "yes"}}
 
     @staticmethod
