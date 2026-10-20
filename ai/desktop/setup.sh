@@ -1,8 +1,11 @@
 #!/bin/sh
-# Install the desktop core in the guest, run as the ai user inside the VM:
+# Install the desktop and default apps in the guest, run as the ai user inside the VM:
 #   emulation/vm.sh exec 'sh /ai/desktop/setup.sh'
 set -eu
-sudo apk add --no-cache sway foot grim seatd eudev wtype font-dejavu
+# Desktop core: compositor, terminal, screenshot, launcher, input test helper, seat and udev.
+sudo apk add --no-cache sway foot grim seatd eudev wtype fuzzel font-dejavu
+# Default apps: text editor, file browser, and a plain-text fallback editor.
+sudo apk add --no-cache micro ranger nano
 sudo rc-update add udev default >/dev/null 2>&1 || true
 sudo rc-update add udev-trigger sysinit >/dev/null 2>&1 || true
 sudo rc-service udev start >/dev/null 2>&1 || true

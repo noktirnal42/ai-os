@@ -138,3 +138,12 @@ Each phase has a gate and a rollback, following the v1 bootstrap roadmap (`docs/
 | Adding a display device changes the VM definition | Flag it as a spec change in `docs/13` before making it (AGENTS rule 8) |
 | The AI damages the guest it should not touch | Snapshots before risky steps; `vm.sh rollback` for recovery |
 | Kernel changes break boot | Test every kernel change in a snapshot; keep the last good image |
+
+## 11. Progress log
+
+- **Phase 1 (headless desktop core):** done. `ai/desktop/tests/run.sh` passes.
+- **Display (flagged in `docs/13`):** done. `VM_DISPLAY=cocoa` opens a macOS window with the desktop.
+- **Input:** keyboard and tablet reach sway through udev and libinput. Live presses in the macOS window not yet confirmed.
+- **Phase 2 (default apps), first slice:** `micro` (editor), `ranger` (file browser), `fuzzel` (launcher), and `nano` installed. Keybindings: Alt+Enter terminal (verified: opens a second terminal), Alt+d launcher, Alt+e file browser, Alt+t editor, Alt+w welcome, Alt+q close, Alt+Shift+e exit. The welcome screen (`/ai/bin/welcome`, source `ai/desktop/bin/welcome`) shows on first start.
+- **Not yet:** a mail window (the `mail` app is still CLI-only), the calculator and settings apps, and the guided build tutorial.
+
