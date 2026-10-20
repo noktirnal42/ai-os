@@ -145,5 +145,13 @@ Each phase has a gate and a rollback, following the v1 bootstrap roadmap (`docs/
 - **Display (flagged in `docs/13`):** done. `VM_DISPLAY=cocoa` opens a macOS window with the desktop.
 - **Input:** keyboard and tablet reach sway through udev and libinput. Live presses in the macOS window not yet confirmed.
 - **Phase 2 (default apps), first slice:** `micro` (editor), `ranger` (file browser), `fuzzel` (launcher), and `nano` installed. Keybindings: Alt+Enter terminal (verified: opens a second terminal), Alt+d launcher, Alt+e file browser, Alt+t editor, Alt+w welcome, Alt+q close, Alt+Shift+e exit. The welcome screen (`/ai/bin/welcome`, source `ai/desktop/bin/welcome`) shows on first start.
-- **Not yet:** a mail window (the `mail` app is still CLI-only), the calculator and settings apps, and the guided build tutorial.
+- **Phase 2 (default apps), done in the emulator:**
+  - Mail: a GTK4 window (Alt+m) with an INBOX list, read and unread, and Compose (Ctrl+N). Compose queues to Outbox; nothing is sent. Verified on screen.
+  - Calculator (Alt+c) over the `calc` app. Settings (Alt+s): system and model status, and the terminal font, which new terminals read from `~/.config/foot/foot.ini`.
+  - Guided tutorial (`tutorial`): builds a `notes` app step by step, runs its acceptance test, and installs it through the approval prompt. The non-interactive path is verified. The interactive install is waiting for the user.
+  - Agent: Alt+a opens a chat window in Chat mode. Ctrl+D (or the header toggle) switches to Do mode, where approvals appear in the window. Verified on screen: a request showed its full question, and Decline was recorded in the audit log.
+  - Alt+Shift+a opens the terminal console (Do mode with the full console).
+- **Phase 2 (desktop shell), done:** an app menu on Alt+Space, window keys (focus, move, fullscreen, floating, splits), workspaces 1 to 4, and a top bar with the model, free memory, and time.
+- **Not yet:** the freedom model in section 5 (a policy file, staged kernel changes, checkpoints and rollback, and the activity window), and the release image in phase 5.
+- **Known gaps:** keyboard and mouse presses in the macOS window are not yet confirmed; the chat window's Do-mode has not been run through a full approve path on screen (only decline has been); `mailview` and the CLI mail view are kept as fallbacks.
 
