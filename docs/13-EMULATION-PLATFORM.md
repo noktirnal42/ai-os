@@ -72,6 +72,7 @@ entire Phase 1–4 build.
 | Firmware | `/opt/homebrew/share/qemu/edk2-aarch64-code.fd` (UEFI) |
 | Net | slirp user-mode; `hostfwd tcp:2222→22`; guest sees host at `10.0.2.2` |
 | Console | serial → `artifacts/console.log` + foreground `-nographic` mode |
+| Display | `VM_DISPLAY=none` (default, headless). `VM_DISPLAY=cocoa` adds a macOS window with `virtio-gpu-pci`, `virtio-keyboard-pci`, `virtio-tablet-pci`. Cocoa mode runs QEMU in the background, not with `-daemonize` (that fork crashes on macOS). |
 | Seed | cloud-init NoCloud ISO (`CIDATA`), built with `hdiutil makehybrid` |
 | User | `ai` (passwordless sudo; UID assigned by Alpine), dedicated SSH key `artifacts/dev_ed25519` |
 | Bootstrap packages | git, gcc, make, musl-dev, curl, rsync, python3, openssh, e2fsprogs |
@@ -213,3 +214,22 @@ the development disk. Copying the overlay alone is not a portable backup.
 
 Acceptance evidence and remaining limits are recorded in
 [`emulation/VALIDATION.md`](../emulation/VALIDATION.md).
+
+---
+
+## Change log
+
+### 2026-10-20 — display device (spec change, flagged per AGENTS rule 8)
+
+- **What changed:** `emulation/vm.conf` adds `VM_DISPLAY` (default `none`). `emulation/vm.sh boot`
+  accepts `cocoa` and adds `virtio-gpu-pci`, `virtio-keyboard-pci`, and `virtio-tablet-pci`, with
+  a macOS window. The default boot is unchanged.
+- **Why:** phase 1 of the v2 desktop (`docs/18`) needs an on-screen compositor. Headless capture
+  proved the desktop; the window proves it on screen.
+- **Verified:** the guest sees `/dev/dri/card0` (driver `virtio_gpu`) and a 1280x800 virtual
+  output, and a `sway` session with a `foot` terminal renders there (software renderer).
+- **Not included:** input from the keyboard and tablet into the desktop (`libinput` setup), and
+  any GL/EGL acceleration. The virtio GPU has no usable EGL driver in the guest yet.
+- **Rollback:** boot with the default `VM_DISPLAY=none`. Snapshot `pre-display-device` holds the
+  guest state before this change.
+
