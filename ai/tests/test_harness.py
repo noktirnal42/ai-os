@@ -448,4 +448,31 @@ class HarnessTests(unittest.TestCase):
         self.assertIn("kept", json.loads(registry.read_text()))
 
 
+    def test_policy_can_narrow_write_roots_but_never_widen_them(self):
+        root = pathlib.Path(self.tmp.name).resolve()
+        builtin = tuple((root / p).resolve() for p in ("apps", "lib", "bin", "state", "tmp", "out"))
+        roots, note = aios.narrow_write_roots([str(root / "apps"), "apps/notes"], builtin, root)
+        self.assertEqual(roots, (root / "apps", root / "apps" / "notes"))
+        self.assertEqual(note, "")
+        roots, note = aios.narrow_write_roots([str(root), "/etc", str(root / "secrets")], builtin, root)
+        self.assertEqual(roots, ())
+        self.assertIn("/etc", note)
+        self.assertIn(str(root), note)
+
+    def test_policy_file_missing_keeps_builtin_and_malformed_fails_closed(self):
+        root = pathlib.Path(self.tmp.name).resolve()
+        builtin = tuple((root / p).resolve() for p in ("apps", "state"))
+        missing = root / "no-policy.json"
+        self.assertEqual(aios.load_write_roots(missing, builtin, root), (builtin, ""))
+        bad = root / "bad.json"
+        bad.write_text("{not json")
+        roots, note = aios.load_write_roots(bad, builtin, root)
+        self.assertEqual(roots, ())
+        self.assertIn("unreadable", note)
+        bad.write_text(json.dumps({"write_roots": "/ai/apps"}))
+        self.assertEqual(aios.load_write_roots(bad, builtin, root)[0], ())
+        bad.write_text(json.dumps({"other": []}))
+        self.assertEqual(aios.load_write_roots(bad, builtin, root)[0], ())
+
+
 if __name__ == "__main__": unittest.main()

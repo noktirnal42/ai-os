@@ -20,8 +20,44 @@ from dataclasses import dataclass, field
 from typing import Any
 
 AI_ROOT = pathlib.Path(os.environ.get("AIOS_ROOT", "/ai")).resolve()
-WRITE_ROOTS = tuple((AI_ROOT / p).resolve() for p in ("apps", "lib", "bin", "state", "tmp", "out"))
-READ_ROOTS = WRITE_ROOTS + ((AI_ROOT / "checkpoints").resolve(),)
+BUILTIN_WRITE_ROOTS = tuple((AI_ROOT / p).resolve() for p in ("apps", "lib", "bin", "state", "tmp", "out"))
+
+
+def narrow_write_roots(requested, builtin, root):
+    """Apply a policy's requested write roots. A policy can only narrow the built-in set: a root is
+    kept only when it is inside a built-in root, so a policy cannot widen writes. Returns (roots, note).
+    A malformed request fails closed with no write roots."""
+    if not isinstance(requested, list) or not all(isinstance(x, str) for x in requested):
+        return (), "policy write_roots must be a list of strings; writes disabled"
+    kept, ignored = [], []
+    for raw in requested:
+        candidate = pathlib.Path(raw) if raw.startswith("/") else root / raw
+        candidate = candidate.resolve()
+        inside = any(candidate == base or base in candidate.parents for base in builtin)
+        if inside and candidate not in kept:
+            kept.append(candidate)
+        elif not inside:
+            ignored.append(raw)
+    note = f"policy ignored roots outside the built-in set: {', '.join(ignored)}" if ignored else ""
+    return tuple(kept), note
+
+
+def load_write_roots(policy_path, builtin, root):
+    """Built-in roots unless the policy file narrows them. A missing file keeps the built-in roots."""
+    if not policy_path.exists():
+        return builtin, ""
+    try:
+        data = json.loads(policy_path.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as exc:
+        return (), f"policy unreadable, writes disabled: {exc}"
+    if not isinstance(data, dict) or "write_roots" not in data:
+        return (), "policy has no write_roots; writes disabled"
+    return narrow_write_roots(data["write_roots"], builtin, root)
+
+
+POLICY_PATH = pathlib.Path(os.environ.get("AIOS_POLICY", str(AI_ROOT / "policy.json")))
+WRITE_ROOTS, POLICY_NOTE = load_write_roots(POLICY_PATH, BUILTIN_WRITE_ROOTS, AI_ROOT)
+READ_ROOTS = BUILTIN_WRITE_ROOTS + ((AI_ROOT / "checkpoints").resolve(),)
 SECRET_ROOT = (AI_ROOT / "secrets").resolve()
 MAX_OUTPUT = 4096
 # Capabilities an app may declare. Anything else is refused at install time.
@@ -304,6 +340,7 @@ class Session:
         self.log = AuditLog(AI_ROOT / "state" / "sessions" / f"{self.sid}.jsonl")
         (AI_ROOT / "state" / "sessions").mkdir(parents=True, exist_ok=True)
         self.log.emit("session_start", session=self.sid, goal=self.goal, model=os.environ.get("AIOS_MODEL", "local"), offline=self.client.offline, resumes=self.resumes)
+        self.log.emit("policy", write_roots=[str(p) for p in WRITE_ROOTS], policy_file=str(POLICY_PATH), note=POLICY_NOTE)
 
     def initial_user_content(self) -> str:
         summary = task_state_summary()

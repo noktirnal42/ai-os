@@ -1,0 +1,124 @@
+#!/usr/bin/env python3
+"""Activity window for AI OS (GTK4): what the agent has done and what it is allowed to write.
+
+It reads the audit logs in /ai/state/sessions and refreshes every two seconds. It never changes
+anything. Formatting is in plain functions so it can be tested without a display.
+"""
+import glob
+import json
+import os
+import sys
+
+SESSIONS = os.environ.get("AIOS_SESSIONS", "/ai/state/sessions")
+POLICY = os.environ.get("AIOS_POLICY", "/ai/policy.json")
+
+
+def parse_event(raw):
+    try:
+        event = json.loads(raw)
+    except (ValueError, UnicodeDecodeError):
+        return None
+    return event if isinstance(event, dict) else None
+
+
+def format_event(event):
+    """One readable line for an audit event. Tool arguments and secrets are never shown."""
+    kind = event.get("ev", "?")
+    stamp = (event.get("t") or "")[5:19].replace("T", " ")  # MM-DD HH:MM:SS
+    if kind == "session_start":
+        body = f"task started: {event.get('goal', '')}"
+    elif kind == "tool_call":
+        body = f"used {event.get('tool', 'a tool')}"
+    elif kind == "tool_result":
+        code = event.get("command_exit")
+        body = f"step finished (exit {code})" if code is not None else f"step finished ({'ok' if event.get('exit') == 0 else 'error'})"
+    elif kind == "registry_test":
+        body = f"acceptance tests for {event.get('app', '?')} exited {event.get('exit')}"
+    elif kind == "gate_request":
+        body = f"asked for approval: {event.get('question', '')}"
+    elif kind == "gate":
+        body = f"approval answered: {event.get('human', '?')}"
+    elif kind == "policy":
+        body = "write roots: " + ", ".join(event.get("write_roots", [])) + (f" ({event['note']})" if event.get("note") else "")
+    elif kind == "verdict":
+        body = f"task {event.get('kind', 'finished')}"
+    else:
+        body = kind
+    return f"{stamp}  {body}"
+
+
+def recent_lines(sessions_dir, limit=200):
+    """The newest audit lines across all sessions, oldest first."""
+    rows = []
+    for path in glob.glob(os.path.join(sessions_dir, "*.jsonl")):
+        try:
+            with open(path, "rb") as handle:
+                for raw in handle.read().splitlines():
+                    event = parse_event(raw)
+                    if event is not None:
+                        rows.append((event.get("t", ""), event))
+        except OSError:
+            continue
+    rows.sort(key=lambda item: item[0])
+    return [format_event(event) for _, event in rows[-limit:]]
+
+
+def policy_text(path):
+    try:
+        with open(path, encoding="utf-8") as handle:
+            data = json.load(handle)
+        roots = data.get("write_roots", [])
+        return "writes allowed in: " + (", ".join(roots) if roots else "nowhere")
+    except (OSError, ValueError, AttributeError):
+        return "no readable policy file: writes are blocked"
+
+
+def run_window():
+    import gi
+    gi.require_version("Gtk", "4.0")
+    from gi.repository import GLib, Gtk
+
+    class Window(Gtk.ApplicationWindow):
+        def __init__(self, app):
+            super().__init__(application=app, title="AI OS activity")
+            self.set_default_size(860, 600)
+            box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
+            box.set_margin_top(12); box.set_margin_bottom(12)
+            box.set_margin_start(12); box.set_margin_end(12)
+            self.set_child(box)
+            self.policy = Gtk.Label(xalign=0, wrap=True)
+            box.append(self.policy)
+            self.view = Gtk.TextView(editable=False, cursor_visible=False)
+            self.view.set_monospace(True)
+            self.view.set_wrap_mode(Gtk.WrapMode.WORD_CHAR)
+            self.buffer = self.view.get_buffer()
+            scroll = Gtk.ScrolledWindow(child=self.view)
+            scroll.set_vexpand(True)
+            box.append(scroll)
+            self.refresh()
+            GLib.timeout_add_seconds(2, self.refresh)
+
+        def refresh(self):
+            self.policy.set_text(policy_text(POLICY))
+            lines = recent_lines(SESSIONS)
+            self.buffer.set_text("\n".join(lines) if lines else "No activity yet.")
+            end = self.buffer.get_end_iter()
+            self.view.scroll_to_iter(end, 0.0, False, 0.0, 1.0)
+            return True
+
+    class App(Gtk.Application):
+        def __init__(self):
+            super().__init__(application_id="os.aios.activity")
+
+        def do_activate(self):
+            Window(self).present()
+
+    return App().run([])
+
+
+if __name__ == "__main__":
+    if "--text" in sys.argv:
+        print(policy_text(POLICY))
+        print("\n".join(recent_lines(SESSIONS, limit=20)))
+    else:
+        sys.exit(run_window() or 0)

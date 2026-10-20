@@ -26,3 +26,7 @@ mkdir -p "$HOME/.config/fuzzel"
 if [ -d /ai/desktop/bin ]; then
   for f in /ai/desktop/bin/*; do sudo install -m 755 "$f" "/ai/bin/$(basename "$f")"; done
 fi
+
+# Freedom policy: the default file narrows nothing. It can only remove write roots (see docs/19).
+[ -f /ai/policy.json ] || cp /ai/desktop/policy/policy.json /ai/policy.json
+

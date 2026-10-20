@@ -1,0 +1,5 @@
+{
+  "version": 1,
+  "write_roots": ["/ai/apps", "/ai/lib", "/ai/bin", "/ai/state", "/ai/tmp", "/ai/out"],
+  "notes": "This file can only narrow the built-in write roots. Remove a root to block writes there. Adding a root here has no effect, and the file itself is not writable by the AI because /ai is not a write root."
+}
