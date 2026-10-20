@@ -243,3 +243,18 @@ Acceptance evidence and remaining limits are recorded in
   connected, but the run did not include a live click or key press from the Mac.
 - **Still not included:** GPU acceleration.
 
+### 2026-10-20 — guest kernel upgrade attempt (reverted)
+
+- **What was tried:** `apk upgrade linux-virt linux-virt-dev` in the guest, from 6.12.110 to 6.12.113,
+  with headers installed to match. The goal was to let `kstage build` compile modules against the
+  running kernel.
+- **Result:** the VM did not boot the new kernel. The console showed `Mounting root: failed.` after
+  the new kernel started. The package install itself succeeded.
+- **Recovery:** `vm.sh rollback pre-kernel-upgrade`, taken before the upgrade, restored the guest to
+  6.12.110. Desktop changes made earlier are kept; only changes after the snapshot were lost.
+- **Not changed:** the VM definition in `emulation/vm.sh` and `vm.conf`. The guest still runs
+  6.12.110, so `kstage build` still refuses until headers for that version are available or the
+  kernel upgrade is fixed.
+- **Next, if upgrading:** investigate the initramfs for 6.12.113 (root device and virtio modules)
+  from a rescue shell, not by repeated reboots. Record the working kernel in this file.
+
