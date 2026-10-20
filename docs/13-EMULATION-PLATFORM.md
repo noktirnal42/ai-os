@@ -233,3 +233,13 @@ Acceptance evidence and remaining limits are recorded in
 - **Rollback:** boot with the default `VM_DISPLAY=none`. Snapshot `pre-display-device` holds the
   guest state before this change.
 
+### 2026-10-20 — desktop input (follow-up to the display change)
+
+- **What changed:** guest packages `eudev` and `wtype`; `udev` runs at boot; the `ai` user joins the
+  `input` and `video` groups (set by `ai/desktop/setup.sh`). No change to `vm.sh` or the VM definition.
+- **Verified:** sway sees `QEMU Virtio Keyboard` (keyboard) and `QEMU Virtio Tablet` (pointer), and
+  keystrokes sent with `wtype` reach a `foot` terminal on the on-screen display.
+- **Not verified:** physical key presses and mouse clicks made in the macOS window. The devices are
+  connected, but the run did not include a live click or key press from the Mac.
+- **Still not included:** GPU acceleration.
+
