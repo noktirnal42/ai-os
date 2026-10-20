@@ -39,14 +39,23 @@ def gate_reply(answer):
     return b"y\n" if answer.strip().lower() in {"y", "yes"} else b"n\n"
 
 
+def event_status(event, step):
+    """Live status for the status line: one line that changes, so routine steps never fill the transcript."""
+    if event.get("ev") == "tool_call":
+        return f"working: using {event.get('tool', 'a tool')} (step {step})"
+    return ""
+
+
+def is_model_noise(text):
+    """Raw model output that is tool-call JSON or code fences, not something to show in the transcript."""
+    stripped = text.lstrip()
+    return stripped.startswith(("{", "[", "```", "}", "]")) or '"name":' in stripped
+
+
 def event_line(event):
-    """A short progress line for one audit event. Tool arguments are never echoed."""
+    """A transcript line for the events worth keeping: gate decisions, acceptance tests, and the verdict.
+    Routine tool steps go to the status line (event_status). Tool arguments are never echoed."""
     kind = event.get("ev")
-    if kind == "tool_call":
-        return f"· using {event.get('tool', 'a tool')}…"
-    if kind == "tool_result":
-        code = event.get("command_exit")
-        return f"· step finished (exit {code})" if code is not None else "· step finished"
     if kind == "registry_test":
         return f"· acceptance tests for {event.get('app', 'an app')} exited {event.get('exit')}"
     if kind == "gate":
@@ -199,7 +208,7 @@ def run_window():
         def read_output(self, proc):
             for raw in proc.stdout:
                 text = raw.decode(errors="replace").rstrip()
-                if text:
+                if text and not is_model_noise(text):
                     GLib.idle_add(self.append_text, text)
             code = proc.wait()
             GLib.idle_add(self.do_finished, code)
@@ -209,6 +218,7 @@ def run_window():
             import time
             path = None
             offset = 0
+            steps = 0
             partial = b""
             while proc.poll() is None or path is not None:
                 if path is None:
@@ -232,12 +242,21 @@ def run_window():
                         if event.get("ev") == "gate_request":
                             GLib.idle_add(self.show_gate, event.get("question", "Approve?"))
                         else:
+                            if event.get("ev") == "tool_call":
+                                steps += 1
+                            status = event_status(event, steps)
+                            if status:
+                                GLib.idle_add(self.set_status, status)
                             line = event_line(event)
                             if line:
                                 GLib.idle_add(self.append_text, line)
                     if proc.poll() is not None and not data:
                         break
                 time.sleep(0.2)
+
+        def set_status(self, text):
+            self.status.set_text(text)
+            return False
 
         def show_gate(self, question):
             self.approval_text.set_text("AI OS asks: " + question)

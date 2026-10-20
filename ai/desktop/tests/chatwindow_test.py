@@ -28,9 +28,20 @@ class DoModeLogic(unittest.TestCase):
         self.assertEqual(cmd[-1], "build a thing")
 
     def test_tool_arguments_are_never_echoed(self):
-        line = chat.event_line({"ev": "tool_call", "tool": "shell", "args": {"cmd": "cat /ai/secrets/x"}})
-        self.assertNotIn("secrets", line)
-        self.assertIn("shell", line)
+        status = chat.event_status({"ev": "tool_call", "tool": "shell", "args": {"cmd": "cat /ai/secrets/x"}}, 2)
+        self.assertNotIn("secrets", status)
+        self.assertIn("shell", status)
+        self.assertIn("step 2", status)
+
+    def test_routine_steps_stay_out_of_the_transcript(self):
+        self.assertEqual(chat.event_line({"ev": "tool_call", "tool": "registry"}), "")
+        self.assertEqual(chat.event_line({"ev": "tool_result", "exit": 0}), "")
+        self.assertEqual(chat.event_status({"ev": "tool_result"}, 1), "")
+
+    def test_model_tool_call_text_is_hidden(self):
+        self.assertTrue(chat.is_model_noise('{"name": "registry", "arguments": {}}'))
+        self.assertTrue(chat.is_model_noise("```json"))
+        self.assertFalse(chat.is_model_noise("Installed the notes app."))
 
     def test_gate_and_verdict_lines(self):
         self.assertEqual(chat.event_line({"ev": "gate", "human": "n"}), "· you answered n")
