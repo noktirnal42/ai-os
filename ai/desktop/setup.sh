@@ -14,6 +14,10 @@ sudo rc-service seatd start >/dev/null 2>&1 || true
 sudo addgroup ai seat 2>/dev/null || true
 sudo addgroup ai video 2>/dev/null || true
 sudo addgroup ai input 2>/dev/null || true
+# Terminal font default, read by foot for every new terminal (settings font changes it).
+mkdir -p "$HOME/.config/foot"
+[ -f "$HOME/.config/foot/foot.ini" ] || printf '[main]\nfont=monospace:size=12\n' > "$HOME/.config/foot/foot.ini"
+
 # Install the desktop helper commands (welcome, tutorial) into /ai/bin when they are present.
 if [ -d /ai/desktop/bin ]; then
   for f in /ai/desktop/bin/*; do sudo install -m 755 "$f" "/ai/bin/$(basename "$f")"; done

@@ -1,0 +1,76 @@
+#!/bin/sh
+# Basic settings for the desktop.
+#   settings            menu
+#   settings info       system and model status (never prints keys)
+#   settings font [N]   show or set the terminal font size (8-24); new terminals use it
+set -eu
+FOOT_INI="${FOOT_INI:-$HOME/.config/foot/foot.ini}"
+DEFAULT_FONT=12
+
+current_font() {
+  if [ -f "$FOOT_INI" ]; then
+    sed -n 's/^font=monospace:size=\([0-9]*\)$/\1/p' "$FOOT_INI" | head -1
+  fi
+}
+
+set_font() {
+  case "$1" in
+    ''|*[!0-9]*) echo "font size must be a number" >&2; exit 2 ;;
+  esac
+  if [ "$1" -lt 8 ] || [ "$1" -gt 24 ]; then
+    echo "font size must be between 8 and 24" >&2; exit 2
+  fi
+  mkdir -p "$(dirname "$FOOT_INI")"
+  printf '[main]\nfont=monospace:size=%s\n' "$1" > "$FOOT_INI"
+  echo "terminal font set to $1 (new terminals use it)"
+}
+
+show_info() {
+  echo "System"
+  echo "  kernel:   $(uname -r)"
+  echo "  uptime:   $(uptime | sed 's/^ *//')"
+  echo "  memory:   $(awk '/MemAvailable/ {printf "%d MB free", $2/1024}' /proc/meminfo)"
+  echo "  disk /:   $(df -h / | awk 'NR==2 {print $4 " free of " $2}')"
+  echo
+  echo "Desktop"
+  echo "  terminal font: $(current_font || true)"
+  echo
+  echo "Model"
+  if [ -f /ai/state/model.json ]; then
+    sed -n 's/.*"model": *"\([^"]*\)".*/  model:    \1/p; s/.*"url": *"\([^"]*\)".*/  endpoint: \1/p' /ai/state/model.json
+  else
+    echo "  not configured (press F3 in the AI OS console to pick one)"
+  fi
+}
+
+menu() {
+  while :; do
+    cat <<'TXT'
+
+  Settings
+    1  system and model status
+    2  terminal font size
+    q  quit
+TXT
+    printf '  > '
+    read -r choice || exit 0
+    case "$choice" in
+      1) echo; show_info ;;
+      2)
+        echo "  current: $(current_font || echo "$DEFAULT_FONT (default)")"
+        printf '  new size (8-24, Enter to keep): '
+        read -r size || exit 0
+        [ -n "$size" ] && set_font "$size" || true
+        ;;
+      q|Q) exit 0 ;;
+      *) echo "  pick 1, 2, or q" ;;
+    esac
+  done
+}
+
+case "${1:-menu}" in
+  info) show_info ;;
+  font) if [ $# -ge 2 ]; then set_font "$2"; else echo "terminal font: $(current_font || echo "$DEFAULT_FONT (default)")"; fi ;;
+  menu) menu ;;
+  *) echo "usage: settings [menu|info|font [N]]" >&2; exit 2 ;;
+esac
