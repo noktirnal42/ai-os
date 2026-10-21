@@ -16,11 +16,11 @@ sudo addgroup ai video 2>/dev/null || true
 sudo addgroup ai input 2>/dev/null || true
 # Terminal font default, read by foot for every new terminal (settings font changes it).
 mkdir -p "$HOME/.config/foot"
-[ -f "$HOME/.config/foot/foot.ini" ] || printf '[main]\nfont=monospace:size=12\n' > "$HOME/.config/foot/foot.ini"
+[ -f "$HOME/.config/foot/foot.ini" ] || printf '[main]\nfont=monospace:size=16\n' > "$HOME/.config/foot/foot.ini"
 
 # Launcher and menu look: a readable size for the virtual display.
 mkdir -p "$HOME/.config/fuzzel"
-[ -f "$HOME/.config/fuzzel/fuzzel.ini" ] || printf '[main]\nfont=monospace:size=12\nwidth=40\nlines=12\n' > "$HOME/.config/fuzzel/fuzzel.ini"
+[ -f "$HOME/.config/fuzzel/fuzzel.ini" ] || printf '[main]\nfont=monospace:size=16\nwidth=40\nlines=12\n' > "$HOME/.config/fuzzel/fuzzel.ini"
 
 # Install the desktop helper commands (welcome, tutorial) into /ai/bin when they are present.
 if [ -d /ai/desktop/bin ]; then
