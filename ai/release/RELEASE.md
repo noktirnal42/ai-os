@@ -96,3 +96,22 @@ provisioning, and then rebuild the release VM from the script instead of by hand
 
 The second fresh VM is stopped; its overlay and seed remain in `emulation/artifacts`.
 
+## Clean rebuild check (2026-10-20, third fresh VM)
+
+Rebuilt from scratch with the fixes: packing with `COPYFILE_DISABLE=1` (no `._` files), provision.sh run to
+exit 0, then a reboot so the new kernel runs. Manifest: `manifest-clean.json`.
+
+- **Kernel:** running and installed are both 6.12.113. This matches the release.
+- **Packages:** 343 installed; 33 differ from the release (the release VM was updated at other times,
+  e.g. curl r3 vs r4 and a crypto point release).
+- **Files:** the clean rebuild now matches the repo. Five files differ from the release VM, which had
+  older copies of app manifests and `setup.sh`. The release VM also holds 117 v1 build-evaluation files
+  that are not in the repo.
+
+Conclusion: the repo, through `provision.sh`, now reproduces a working AI OS guest with the same kernel
+and desktop. The old candidate VM is not a byte-level match, because it accumulated older files and
+v1 output. The clean rebuild (`manifest-clean.json`) is the better reference for a release. Promoting it
+means snapshotting that VM and recording its checksum here, which is a decision for you.
+
+The third fresh VM is stopped; its overlay and seed remain in `emulation/artifacts`.
+
