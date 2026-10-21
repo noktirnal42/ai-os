@@ -115,3 +115,20 @@ means snapshotting that VM and recording its checksum here, which is a decision 
 
 The third fresh VM is stopped; its overlay and seed remain in `emulation/artifacts`.
 
+## Promoted release: clean rebuild (2026-10-20)
+
+- **VM snapshot:** `release-clean-v2` (taken with the VM stopped), from the clean rebuild in
+  `manifest-clean.json`. This replaces `release-candidate-v2` as the reference.
+- **Overlay disk:** `emulation/artifacts/aios-fresh3.qcow2`, SHA-256
+  `0ed675fedbf23a292b628bbf08960789e814e724cb219894089ed60cbf512a6d`.
+- **Base image:** `emulation/artifacts/alpine-verified.qcow2`, SHA-256
+  `6cf39b582622d1476b4978e94e541535c43bc0835f78336f55f57c3baeff1680`; its published SHA-512 matches.
+- **Rebuild:** `ai/release/provision.sh` from the repo tree (packed with `COPYFILE_DISABLE=1`), then a reboot
+  onto kernel 6.12.113.
+
+The overlay depends on the base image, so both checksums are needed to rebuild the same state. Disk files
+are generated and not committed; verify them with `shasum -a 256` before use.
+
+Limit: the release is still the emulator guest only, and the overlay holds the state from one run, not a
+guarantee of byte-identical output from a second run (package mirror versions can move).
+
