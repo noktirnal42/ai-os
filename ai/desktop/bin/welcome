@@ -1,0 +1,23 @@
+#!/bin/sh
+# First-run welcome shown in the terminal. Explains the desktop and the first app to build.
+cat <<'TXT'
+
+  AI OS desktop
+
+  Keys (Alt is the modifier):
+    Alt+Enter   new terminal
+    Alt+d       app launcher (type a name, Enter)
+    Alt+e       file browser (ranger: q to quit)
+    Alt+t       text editor (micro: Ctrl+s save, Ctrl+q quit)
+    Alt+w       this welcome screen
+    Alt+q       close the focused window
+    Alt+Shift+e log out of the desktop
+
+  Next: build your first app. In this terminal run:
+    tutorial
+  It walks you through a notes app: build, test, then approve the install.
+
+  Press Enter to start a shell.
+TXT
+read -r _ || true
+exec "${SHELL:-/bin/sh}"

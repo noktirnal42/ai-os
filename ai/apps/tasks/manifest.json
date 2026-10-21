@@ -1,0 +1,6 @@
+{
+  "name": "tasks",
+  "version": "0.1.0",
+  "entry": "/ai/bin/tasks",
+  "tests": "/ai/apps/tasks/tests/run.sh"
+}

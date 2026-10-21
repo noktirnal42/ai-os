@@ -77,9 +77,24 @@ case "$cmd" in
       -drive "file=$SEED_ISO,format=raw,if=virtio,readonly=on"
       -netdev "user,id=net0,hostfwd=tcp:127.0.0.1:${SSH_PORT}-:22"
       -device virtio-net-pci,netdev=net0 -pidfile "$QEMU_PIDFILE")
+    display_args=(-display none)
+    if [[ "$VM_DISPLAY" == cocoa ]]; then
+      QEMU_ARGS+=(-device virtio-gpu-pci -device virtio-keyboard-pci -device virtio-tablet-pci)
+      display_args=(-display cocoa)
+    elif [[ "$VM_DISPLAY" != none ]]; then
+      die "VM_DISPLAY must be none or cocoa" 2
+    fi
     if [[ "${1:-}" == --fg ]]; then exec "$QEMU_BIN" "${QEMU_ARGS[@]}" -nographic; fi
-    "$QEMU_BIN" "${QEMU_ARGS[@]}" -daemonize -serial "file:$CONSOLE_LOG" -display none \
-      </dev/null >>"$CONSOLE_LOG.out" 2>&1
+    if [[ "$VM_DISPLAY" == cocoa ]]; then
+      # -daemonize forks after Cocoa initializes and crashes on macOS, so run QEMU as a
+      # background process instead. -pidfile still records the PID for vm.sh.
+      nohup "$QEMU_BIN" "${QEMU_ARGS[@]}" -serial "file:$CONSOLE_LOG" "${display_args[@]}" \
+        </dev/null >>"$CONSOLE_LOG.out" 2>&1 &
+      disown
+    else
+      "$QEMU_BIN" "${QEMU_ARGS[@]}" -daemonize -serial "file:$CONSOLE_LOG" "${display_args[@]}" \
+        </dev/null >>"$CONSOLE_LOG.out" 2>&1
+    fi
     for i in {1..20}; do vm_running && break; sleep 0.5; done
     vm_running || die "QEMU failed; run vm.sh logs" 4
     log "VM started (pid $(vm_pid)); next: vm.sh wait"

@@ -1,0 +1,224 @@
+#!/usr/bin/env python3
+"""Mail window for AI OS (GTK4). Uses the local mail store through /ai/apps/mail/mail.py.
+
+Nothing is sent or fetched from the network. Compose queues a message in Outbox.
+Logic (store access, summaries, read state) lives in plain functions so it can be tested
+without a display. The window code imports GTK only when it runs.
+"""
+import importlib.util
+import os
+import sys
+
+MAIL_MODULE = os.environ.get("AIOS_MAIL_SOURCE", "/ai/apps/mail/mail.py")
+
+
+def load_mail():
+    spec = importlib.util.spec_from_file_location("aios_mail", MAIL_MODULE)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def inbox(store):
+    return [m for m in store["messages"] if m.get("folder", "INBOX") == "INBOX"]
+
+
+def row_text(message):
+    marker = "  " if message.get("read") else "● "
+    return f"{marker}{message.get('from', '')}\n    {message.get('subject', '(no subject)')}"
+
+
+def detail_text(message):
+    lines = [
+        f"From:    {message.get('from', '')}",
+        f"To:      {message.get('to', '')}",
+        f"Subject: {message.get('subject', '')}",
+        f"Date:    {message.get('date', '')}",
+        f"Folder:  {message.get('folder', 'INBOX')}",
+        "",
+        message.get("body", ""),
+    ]
+    return "\n".join(lines)
+
+
+def set_read(store, msg_id, value):
+    for message in store["messages"]:
+        if message.get("id") == msg_id:
+            message["read"] = bool(value)
+            return True
+    return False
+
+
+def queue_message(store, to, subject, body, date):
+    message = {
+        "id": store["next_id"], "folder": "Outbox", "from": "you@ai-os.local",
+        "to": to, "subject": subject, "date": date, "body": body, "read": True,
+    }
+    store["next_id"] += 1
+    store["messages"].append(message)
+    return message
+
+
+def run_window(mail):
+    import gi
+    gi.require_version("Gtk", "4.0")
+    from gi.repository import Gdk, GLib, Gtk
+
+    path = os.environ.get("AIOS_MAIL_FILE") or mail.DEFAULT_FILE
+
+    class Window(Gtk.ApplicationWindow):
+        def __init__(self, app):
+            super().__init__(application=app, title="Mail")
+            self.set_default_size(1000, 640)
+            self.selected = None
+
+            header = Gtk.HeaderBar()
+            compose = Gtk.Button(label="Compose")
+            compose.connect("clicked", self.on_compose)
+            header.pack_start(compose)
+            self.set_titlebar(header)
+
+            paned = Gtk.Paned(orientation=Gtk.Orientation.HORIZONTAL)
+            paned.set_position(340)
+            self.set_child(paned)
+
+            self.listbox = Gtk.ListBox()
+            self.listbox.connect("row-selected", self.on_row_selected)
+            scroll_list = Gtk.ScrolledWindow(child=self.listbox)
+            scroll_list.set_vexpand(True)
+            paned.set_start_child(scroll_list)
+
+            right = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
+            right.set_margin_top(12); right.set_margin_bottom(12)
+            right.set_margin_start(12); right.set_margin_end(12)
+            self.detail = Gtk.Label(xalign=0, yalign=0, selectable=True, wrap=True)
+            self.detail.set_text("Select a message. Nothing has been sent from this window.")
+            scroll_detail = Gtk.ScrolledWindow(child=self.detail)
+            scroll_detail.set_vexpand(True)
+            right.append(scroll_detail)
+            buttons = Gtk.Box(spacing=8)
+            self.read_btn = Gtk.Button(label="Mark read")
+            self.read_btn.connect("clicked", lambda *_: self.mark(True))
+            self.unread_btn = Gtk.Button(label="Mark unread")
+            self.unread_btn.connect("clicked", lambda *_: self.mark(False))
+            buttons.append(self.read_btn); buttons.append(self.unread_btn)
+            right.append(buttons)
+            self.status = Gtk.Label(xalign=0)
+            right.append(self.status)
+            paned.set_end_child(right)
+
+            keys = Gtk.EventControllerKey()
+            keys.connect("key-pressed", self.on_key)
+            self.add_controller(keys)
+
+            self.reload()
+
+        def on_key(self, _controller, keyval, _keycode, state):
+            # Ctrl+N opens Compose, the same as the header button.
+            if keyval in (Gdk.KEY_n, Gdk.KEY_N) and state & Gdk.ModifierType.CONTROL_MASK:
+                self.on_compose(None)
+                return True
+            return False
+
+        def store(self):
+            return mail.load_store(path)
+
+        def reload(self, select_id=None):
+            store = self.store()
+            while (row := self.listbox.get_row_at_index(0)) is not None:
+                self.listbox.remove(row)
+            for message in inbox(store):
+                label = Gtk.Label(label=row_text(message), xalign=0)
+                label.set_margin_top(6); label.set_margin_bottom(6)
+                label.set_margin_start(8)
+                row = Gtk.ListBoxRow(child=label)
+                row.msg_id = message["id"]
+                self.listbox.append(row)
+                if message["id"] == select_id:
+                    self.listbox.select_row(row)
+            count = len(inbox(store))
+            unread = sum(1 for m in inbox(store) if not m.get("read"))
+            self.status.set_text(f"INBOX: {unread} unread / {count} total")
+            if count == 0:
+                self.detail.set_text("INBOX is empty. Import an mbox file with: mail import FILE")
+
+        def on_row_selected(self, _listbox, row):
+            if row is None:
+                self.selected = None
+                return
+            self.selected = row.msg_id
+            message = mail.find_message(self.store(), row.msg_id)
+            if message is not None:
+                self.detail.set_text(detail_text(message))
+
+        def mark(self, value):
+            if self.selected is None:
+                return
+            store = self.store()
+            if set_read(store, self.selected, value):
+                mail.save_store(path, store)
+            self.reload(select_id=self.selected)
+
+        def on_compose(self, _button):
+            dialog = Gtk.Window(transient_for=self, modal=True, title="Compose")
+            dialog.set_default_size(560, 420)
+            box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
+            box.set_margin_top(12); box.set_margin_bottom(12)
+            box.set_margin_start(12); box.set_margin_end(12)
+            to = Gtk.Entry(placeholder_text="To")
+            subject = Gtk.Entry(placeholder_text="Subject")
+            body = Gtk.TextView(); body.set_wrap_mode(Gtk.WrapMode.WORD)
+            scroll = Gtk.ScrolledWindow(child=body); scroll.set_vexpand(True)
+            note = Gtk.Label(label="Saved to Outbox. Nothing is sent over the network.", xalign=0)
+            send = Gtk.Button(label="Queue in Outbox")
+            for w in (to, subject, scroll, note, send):
+                box.append(w)
+            dialog.set_child(box)
+
+            def queue(*_):
+                buffer = body.get_buffer()
+                text = buffer.get_text(buffer.get_start_iter(), buffer.get_end_iter(), False)
+                store = self.store()
+                queue_message(store, to.get_text(), subject.get_text(), text,
+                              mail.email.utils.formatdate(localtime=True))
+                mail.save_store(path, store)
+                dialog.destroy()
+                self.status.set_text("Queued in Outbox")
+
+            send.connect("clicked", queue)
+
+            # Tab in the body moves focus out instead of inserting a tab character.
+            body_keys = Gtk.EventControllerKey()
+            body_keys.set_propagation_phase(Gtk.PropagationPhase.CAPTURE)
+
+            def on_body_key(_controller, keyval, _keycode, state):
+                if keyval == Gdk.KEY_Tab:
+                    send.grab_focus()
+                    return True
+                if keyval == Gdk.KEY_ISO_Left_Tab:
+                    subject.grab_focus()
+                    return True
+                return False
+
+            body_keys.connect("key-pressed", on_body_key)
+            body.add_controller(body_keys)
+            dialog.present()
+
+    class App(Gtk.Application):
+        def __init__(self):
+            super().__init__(application_id="os.aios.mail")
+
+        def do_activate(self):
+            win = Window(self)
+            win.present()
+
+    return App().run([])
+
+
+def main():
+    mail = load_mail()
+    return run_window(mail) or 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

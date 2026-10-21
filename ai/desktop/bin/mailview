@@ -1,0 +1,12 @@
+#!/bin/sh
+# Inbox view for the mail app: lists INBOX, shows the commands, then opens a shell.
+set -eu
+/ai/bin/mail list || true
+echo
+echo "  Read:    mail show ID"
+echo "  Mark:    mail read ID   |   mail unread ID"
+echo "  Write:   mail compose TO SUBJECT BODY"
+echo "  Import:  mail import FILE.mbox"
+echo "  (Mail is local only. Nothing is sent or fetched from the network.)"
+echo
+exec "${SHELL:-/bin/sh}"

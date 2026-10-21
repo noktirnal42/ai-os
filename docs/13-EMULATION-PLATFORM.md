@@ -72,6 +72,7 @@ entire Phase 1–4 build.
 | Firmware | `/opt/homebrew/share/qemu/edk2-aarch64-code.fd` (UEFI) |
 | Net | slirp user-mode; `hostfwd tcp:2222→22`; guest sees host at `10.0.2.2` |
 | Console | serial → `artifacts/console.log` + foreground `-nographic` mode |
+| Display | `VM_DISPLAY=none` (default, headless). `VM_DISPLAY=cocoa` adds a macOS window with `virtio-gpu-pci`, `virtio-keyboard-pci`, `virtio-tablet-pci`. Cocoa mode runs QEMU in the background, not with `-daemonize` (that fork crashes on macOS). |
 | Seed | cloud-init NoCloud ISO (`CIDATA`), built with `hdiutil makehybrid` |
 | User | `ai` (passwordless sudo; UID assigned by Alpine), dedicated SSH key `artifacts/dev_ed25519` |
 | Bootstrap packages | git, gcc, make, musl-dev, curl, rsync, python3, openssh, e2fsprogs |
@@ -213,3 +214,74 @@ the development disk. Copying the overlay alone is not a portable backup.
 
 Acceptance evidence and remaining limits are recorded in
 [`emulation/VALIDATION.md`](../emulation/VALIDATION.md).
+
+---
+
+## Change log
+
+### 2026-10-20 — display device (spec change, flagged per AGENTS rule 8)
+
+- **What changed:** `emulation/vm.conf` adds `VM_DISPLAY` (default `none`). `emulation/vm.sh boot`
+  accepts `cocoa` and adds `virtio-gpu-pci`, `virtio-keyboard-pci`, and `virtio-tablet-pci`, with
+  a macOS window. The default boot is unchanged.
+- **Why:** phase 1 of the v2 desktop (`docs/18`) needs an on-screen compositor. Headless capture
+  proved the desktop; the window proves it on screen.
+- **Verified:** the guest sees `/dev/dri/card0` (driver `virtio_gpu`) and a 1280x800 virtual
+  output, and a `sway` session with a `foot` terminal renders there (software renderer).
+- **Not included:** input from the keyboard and tablet into the desktop (`libinput` setup), and
+  any GL/EGL acceleration. The virtio GPU has no usable EGL driver in the guest yet.
+- **Rollback:** boot with the default `VM_DISPLAY=none`. Snapshot `pre-display-device` holds the
+  guest state before this change.
+
+### 2026-10-20 — desktop input (follow-up to the display change)
+
+- **What changed:** guest packages `eudev` and `wtype`; `udev` runs at boot; the `ai` user joins the
+  `input` and `video` groups (set by `ai/desktop/setup.sh`). No change to `vm.sh` or the VM definition.
+- **Verified:** sway sees `QEMU Virtio Keyboard` (keyboard) and `QEMU Virtio Tablet` (pointer), and
+  keystrokes sent with `wtype` reach a `foot` terminal on the on-screen display.
+- **Not verified:** physical key presses and mouse clicks made in the macOS window. The devices are
+  connected, but the run did not include a live click or key press from the Mac.
+- **Still not included:** GPU acceleration.
+
+### 2026-10-20 — guest kernel upgrade attempt (reverted)
+
+- **What was tried:** `apk upgrade linux-virt linux-virt-dev` in the guest, from 6.12.110 to 6.12.113,
+  with headers installed to match. The goal was to let `kstage build` compile modules against the
+  running kernel.
+- **Result:** the VM did not boot the new kernel. The console showed `Mounting root: failed.` after
+  the new kernel started. The package install itself succeeded.
+- **Recovery:** `vm.sh rollback pre-kernel-upgrade`, taken before the upgrade, restored the guest to
+  6.12.110. Desktop changes made earlier are kept; only changes after the snapshot were lost.
+- **Not changed:** the VM definition in `emulation/vm.sh` and `vm.conf`. The guest still runs
+  6.12.110, so `kstage build` still refuses until headers for that version are available or the
+  kernel upgrade is fixed.
+- **Next, if upgrading:** investigate the initramfs for 6.12.113 (root device and virtio modules)
+  from a rescue shell, not by repeated reboots. Record the working kernel in this file.
+
+### 2026-10-20 — guest kernel 6.12.113 (follow-up; the upgrade now works)
+
+- **Cause of the earlier failure:** `apk upgrade linux-virt` replaced `/boot/vmlinuz-virt` but not
+  `/boot/initramfs-virt`. The GRUB entry loads that initramfs with the new kernel, and it only held
+  the 6.12.110 modules. The new kernel could not find the block driver, so root mount failed. This
+  was read from the initramfs contents, not guessed.
+- **Fix:** `sudo mkinitfs -o /boot/initramfs-virt 6.12.113-0-virt`. The old initramfs is kept as
+  `/boot/initramfs-virt.6.12.110.bak`.
+- **Result:** the VM boots 6.12.113 with root mounted, `/dev/dri/card0` is present, the desktop starts,
+  and `kstage build aios_hello` builds and passes its test against the running kernel. The module was
+  requested for a human load but not loaded.
+- **Procedure for future kernel upgrades:** after `apk upgrade linux-virt linux-virt-dev`, run
+  `sudo mkinitfs -o /boot/initramfs-virt <new-version>` before rebooting, then boot and check
+  `uname -r`. Keep a `vm.sh snapshot` before the upgrade.
+- **Open:** why the package post-install does not regenerate the initramfs on this image. Not
+  investigated further.
+- **VM definition:** unchanged in `emulation/vm.sh` and `vm.conf`.
+
+### 2026-10-20 — autologin to the desktop on the console (guest configuration)
+
+- **What changed in the guest:** `/etc/inittab` runs `/bin/login -f ai` on tty1 instead of a login
+  prompt, and the ai user's profile starts `/ai/bin/desktop-session` (sway) on tty1. The serial console
+  keeps its login prompt. No change to `emulation/vm.sh` or `vm.sh`'s VM definition.
+- **Why:** after a reboot the QEMU window showed a small login prompt. The desktop now appears on boot.
+- **Verified:** after a restart, sway runs on tty1 and the welcome terminal is on screen.
+- **Note:** `ai/desktop/setup.sh` makes this change; a fresh guest needs the setup script run once.
+

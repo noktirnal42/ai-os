@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
+import io
 import json
 import curses
 import os
+import subprocess
 import pathlib
 import tempfile
 import unittest
@@ -115,7 +117,7 @@ class HarnessTests(unittest.TestCase):
         with mock.patch.object(s, "ask_human", return_value={"approved": True}) as gate:
             result = s.call_tool("registry", {"op": "install", "name": "hello"})
         self.assertNotIn("error", result, result)
-        self.assertIn("acceptance test:", gate.call_args.args[0]["question"])
+        self.assertIn("Acceptance test:", gate.call_args.args[0]["question"])
         self.assertTrue(result["registry"]["hello"]["tests_pass"])
         rows = [json.loads(line) for line in s.log.path.read_text().splitlines()]
         self.assertTrue(any(row["ev"] == "tool_result" for row in rows))
@@ -191,6 +193,26 @@ class HarnessTests(unittest.TestCase):
         self.assertEqual(verdict["kind"], "partial")
         self.assertFalse(verdict["verified"])
 
+    def test_install_verdict_comes_from_acceptance_tests_not_model_wording(self):
+        self.prepare_app("verdict-app", "exit 0\n")
+        class FakeClient:
+            offline = False
+            def __init__(self): self.calls = 0
+            def chat(self, messages, tools):
+                self.calls += 1
+                if self.calls == 1:
+                    args = {"op": "install", "name": "verdict-app"}
+                    return {"choices": [{"message": {"role": "assistant", "content": "", "tool_calls": [{"id": "1", "function": {"name": "registry", "arguments": json.dumps(args)}}]}}]}
+                return {"choices": [{"message": {"role": "assistant", "content": "I am not sure it worked."}}]}
+        session = aios.Session("install it", FakeClient(), max_tools=4, max_seconds=5)
+        with mock.patch.object(session, "ask_human", return_value={"approved": True}):
+            self.assertEqual(session.run(), 0)
+        self.assertIn("verdict-app", session.verified_installs)
+        rows = [json.loads(line) for line in session.log.path.read_text().splitlines()]
+        verdict = next(row for row in rows if row["ev"] == "verdict")
+        self.assertEqual(verdict["kind"], "succeeded")
+        self.assertTrue(verdict["verified"])
+
     def test_required_command_nudges_early_final_and_verifies_success(self):
         root = self.root
         command = "printf REQUIRED_TEST_OK"
@@ -252,6 +274,205 @@ class HarnessTests(unittest.TestCase):
         self.assertEqual(args["workdir"], str(script.parent))
         outside = json.dumps({"name": "/bin/sh", "arguments": {"path": "/etc/passwd"}})
         self.assertIsNone(aios.Session.text_tool_call(outside))
+
+    def test_task_state_summary_reads_shared_list_and_fails_closed(self):
+        tasks_path = self.root / "state" / "tasks.json"
+        tasks_path.write_text(json.dumps({"tasks": [
+            {"id": 1, "title": "write step", "status": "done", "depends": [], "acceptance_cmd": "true"},
+            {"id": 2, "title": "second step", "status": "pending", "depends": [1], "acceptance_cmd": "test -f /ai/apps/ok"},
+            {"id": 3, "title": "broken step", "status": "failed", "depends": [], "acceptance_cmd": ""},
+        ]}))
+        summary = aios.task_state_summary()
+        self.assertIn("[2] second step (pending) depends:1 acceptance:test -f /ai/apps/ok", summary)
+        self.assertIn("[3] broken step (failed)", summary)
+        self.assertNotIn("[1]", summary)
+        tasks_path.write_text("{corrupt json")
+        self.assertIsNone(aios.task_state_summary())
+        with mock.patch.dict(os.environ, {"AIOS_TASKS_FILE": str(self.root / "state" / "elsewhere.json")}):
+            self.assertIsNone(aios.task_state_summary())
+
+    def test_resume_goal_brief_includes_unfinished_tasks_and_original_goal(self):
+        (self.root / "state" / "tasks.json").write_text(json.dumps({"tasks": [
+            {"id": 1, "title": "done thing", "status": "done"},
+            {"id": 2, "title": "resume thing", "status": "active", "acceptance_cmd": "echo ok"},
+        ]}))
+        goal = aios.resume_goal("build the widget")
+        self.assertIn("[2] resume thing (active)", goal)
+        self.assertIn("Original session goal: build the widget", goal)
+        self.assertNotIn("[1]", goal)
+        (self.root / "state" / "tasks.json").write_text(json.dumps({"tasks": [
+            {"id": 1, "title": "done", "status": "done"}]}))
+        self.assertIsNone(aios.resume_goal("anything"))
+
+    def test_run_injects_task_state_and_refreshes_when_list_changes(self):
+        root = self.root
+        (root / "state" / "tasks.json").write_text(json.dumps({"tasks": [
+            {"id": 1, "title": "finish it", "status": "pending", "acceptance_cmd": "true"}]}))
+        seen = []
+        class FakeClient:
+            offline = False
+            def __init__(self): self.calls = 0
+            def chat(self, messages, tools):
+                self.calls += 1
+                seen.append(messages[1]["content"])
+                if self.calls == 1:
+                    args = {"path": str(root / "state" / "tasks.json"),
+                            "content": json.dumps({"tasks": [{"id": 1, "title": "finish it", "status": "done", "acceptance_cmd": "true"}]})}
+                    return {"choices": [{"message": {"role": "assistant", "content": "", "tool_calls": [
+                        {"id": "1", "function": {"name": "fs_write", "arguments": json.dumps(args)}}]}}]}
+                return {"choices": [{"message": {"role": "assistant", "content": "all done"}}]}
+        session = aios.Session("task injection", FakeClient(), max_tools=4, max_seconds=5, resumes="prior-sid")
+        self.assertEqual(session.run(), 0)
+        self.assertIn("[1] finish it (pending)", seen[0])
+        self.assertNotIn("[1]", seen[1])
+        rows = [json.loads(line) for line in session.log.path.read_text().splitlines()]
+        start = next(r for r in rows if r["ev"] == "session_start")
+        self.assertEqual(start["resumes"], "prior-sid")
+        refresh = [r for r in rows if r["ev"] == "task_state_refresh"]
+        self.assertEqual(len(refresh), 1)
+
+    def test_session_goal_recovery_from_audit_log(self):
+        log_dir = self.root / "state" / "sessions"
+        log_dir.mkdir(parents=True, exist_ok=True)
+        (log_dir / "sid-abc.jsonl").write_text(
+            json.dumps({"ev": "session_start", "goal": "write the browser"}) + "\n" +
+            json.dumps({"ev": "tool_call"}) + "\n")
+        self.assertEqual(aios.session_goal_from_log("sid-abc"), "write the browser")
+        self.assertIsNone(aios.session_goal_from_log("missing-sid"))
+        self.assertIsNone(aios.session_goal_from_log("../escape"))
+
+
+    def test_ask_human_reads_one_answer_and_logs_the_request(self):
+        s = self.session()
+        with mock.patch("sys.stdin", io.StringIO("yes\n")), mock.patch("sys.stderr", io.StringIO()):
+            self.assertEqual(s.ask_human({"question": "Install?"}), {"approved": True})
+        rows = [json.loads(line) for line in (self.root / "state" / "sessions").glob("*.jsonl").__next__().read_text().splitlines()]
+        self.assertEqual([r["ev"] for r in rows if r["ev"].startswith("gate")], ["gate_request", "gate"])
+
+    def test_ask_human_denies_when_no_one_can_answer(self):
+        s = self.session()
+        with mock.patch("sys.stdin", io.StringIO("")), mock.patch("sys.stderr", io.StringIO()):
+            self.assertEqual(s.ask_human({"question": "Install?"})["approved"], False)
+
+    def test_tui_gate_keys_map_to_the_harness_answer_line(self):
+        self.assertEqual(aios_tui.gate_answer("y"), b"y\n")
+        self.assertEqual(aios_tui.gate_answer("Y"), b"y\n")
+        self.assertEqual(aios_tui.gate_answer("\n"), b"n\n")
+        self.assertEqual(aios_tui.gate_answer(13), b"n\n")
+        self.assertEqual(aios_tui.gate_answer("n"), b"n\n")
+        self.assertIsNone(aios_tui.gate_answer("x"))
+        self.assertIsNone(aios_tui.gate_answer(-1))
+
+    def test_registry_install_through_a_pipe_needs_a_yes_and_nothing_else(self):
+        self.prepare_app("piped", "exit 0\n")
+        script = pathlib.Path(aios.__file__)
+        env = {**os.environ, "AIOS_ROOT": str(self.root)}
+        denied = subprocess.run([sys.executable, str(script), "registry", "install", "piped"],
+                                input="", text=True, capture_output=True, env=env)
+        self.assertNotEqual(denied.returncode, 0)
+        self.assertIn("not approved", denied.stderr)
+        self.assertFalse((self.root / "state" / "registry.json").exists())
+        approved = subprocess.run([sys.executable, str(script), "registry", "install", "piped"],
+                                  input="y\n", text=True, capture_output=True, env=env)
+        self.assertEqual(approved.returncode, 0, approved.stderr)
+        registry = json.loads((self.root / "state" / "registry.json").read_text())
+        self.assertTrue(registry["piped"]["tests_pass"])
+
+
+    def test_model_cannot_request_approvals_itself(self):
+        s = self.session()
+        names = [t["function"]["name"] for t in aios.TOOLS]
+        self.assertNotIn("ask_human", names)
+        result = s.call_tool("ask_human", {"question": "Install anything?"})
+        self.assertIn("error", result)
+        self.assertIn("harness", result["error"])
+
+    def test_registry_remove_requires_human_approval(self):
+        self.prepare_app("kept", "exit 0\n")
+        registry = self.root / "state" / "registry.json"
+        registry.parent.mkdir(parents=True, exist_ok=True)
+        registry.write_text(json.dumps({"kept": {"name": "kept", "version": "0.1.0"}}))
+        s = self.session()
+        with mock.patch.object(s, "ask_human", return_value={"approved": False}):
+            with self.assertRaises(PermissionError):
+                s.registry({"op": "remove", "name": "kept"})
+        self.assertIn("kept", json.loads(registry.read_text()))
+        with mock.patch.object(s, "ask_human", return_value={"approved": True}):
+            s.registry({"op": "remove", "name": "kept"})
+        self.assertNotIn("kept", json.loads(registry.read_text()))
+
+    def test_install_prompt_shows_declared_capabilities_and_test_size(self):
+        self.prepare_app("shown", "exit 0\n")
+        manifest = self.root / "apps" / "shown" / "manifest.json"
+        data = json.loads(manifest.read_text()); data["capabilities"] = ["fs:/ai/state"]; manifest.write_text(json.dumps(data))
+        s = self.session()
+        with mock.patch.object(s, "ask_human", return_value={"approved": False}) as ask:
+            with self.assertRaises(PermissionError):
+                s.registry({"op": "install", "name": "shown"})
+        question = ask.call_args[0][0]["question"]
+        self.assertIn("Declared capabilities: fs:/ai/state", question)
+        self.assertIn("lines, network disabled", question)
+
+    def test_install_refuses_unsupported_and_network_capabilities_before_prompting(self):
+        self.prepare_app("capped", "exit 0\n")
+        manifest = self.root / "apps" / "capped" / "manifest.json"
+        s = self.session()
+        for declared, expected in ((["net:example.com"], "network capabilities"), (["proc:spawn"], "unsupported capabilities")):
+            data = json.loads(manifest.read_text()); data["capabilities"] = declared; manifest.write_text(json.dumps(data))
+            with mock.patch.object(s, "ask_human", return_value={"approved": True}) as ask:
+                with self.assertRaisesRegex(PermissionError, expected):
+                    s.registry({"op": "install", "name": "capped"})
+            ask.assert_not_called()
+
+    def test_install_accepts_supported_capability_and_prompts(self):
+        self.prepare_app("allowed", "exit 0\n")
+        manifest = self.root / "apps" / "allowed" / "manifest.json"
+        data = json.loads(manifest.read_text()); data["capabilities"] = ["fs:/ai/state"]; manifest.write_text(json.dumps(data))
+        s = self.session()
+        with mock.patch.object(s, "ask_human", return_value={"approved": False}) as ask:
+            with self.assertRaises(PermissionError):
+                s.registry({"op": "install", "name": "allowed"})
+        ask.assert_called_once()
+
+    def test_model_cannot_remove_apps_or_see_remove_in_its_tools(self):
+        self.prepare_app("kept", "exit 0\n")
+        registry = self.root / "state" / "registry.json"
+        registry.parent.mkdir(parents=True, exist_ok=True)
+        registry.write_text(json.dumps({"kept": {"name": "kept", "version": "0.1.0"}}))
+        schema = next(t["function"] for t in aios.TOOLS if t["function"]["name"] == "registry")
+        self.assertEqual(schema["parameters"]["properties"]["op"]["enum"], ["install", "query"])
+        s = self.session()
+        with mock.patch.object(s, "ask_human", return_value={"approved": True}):
+            result = s.call_tool("registry", {"op": "remove", "name": "kept"})
+        self.assertIn("error", result)
+        self.assertIn("kept", json.loads(registry.read_text()))
+
+
+    def test_policy_can_narrow_write_roots_but_never_widen_them(self):
+        root = pathlib.Path(self.tmp.name).resolve()
+        builtin = tuple((root / p).resolve() for p in ("apps", "lib", "bin", "state", "tmp", "out"))
+        roots, note = aios.narrow_write_roots([str(root / "apps"), "apps/notes"], builtin, root)
+        self.assertEqual(roots, (root / "apps", root / "apps" / "notes"))
+        self.assertEqual(note, "")
+        roots, note = aios.narrow_write_roots([str(root), "/etc", str(root / "secrets")], builtin, root)
+        self.assertEqual(roots, ())
+        self.assertIn("/etc", note)
+        self.assertIn(str(root), note)
+
+    def test_policy_file_missing_keeps_builtin_and_malformed_fails_closed(self):
+        root = pathlib.Path(self.tmp.name).resolve()
+        builtin = tuple((root / p).resolve() for p in ("apps", "state"))
+        missing = root / "no-policy.json"
+        self.assertEqual(aios.load_write_roots(missing, builtin, root), (builtin, ""))
+        bad = root / "bad.json"
+        bad.write_text("{not json")
+        roots, note = aios.load_write_roots(bad, builtin, root)
+        self.assertEqual(roots, ())
+        self.assertIn("unreadable", note)
+        bad.write_text(json.dumps({"write_roots": "/ai/apps"}))
+        self.assertEqual(aios.load_write_roots(bad, builtin, root)[0], ())
+        bad.write_text(json.dumps({"other": []}))
+        self.assertEqual(aios.load_write_roots(bad, builtin, root)[0], ())
 
 
 if __name__ == "__main__": unittest.main()

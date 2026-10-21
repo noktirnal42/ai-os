@@ -1,0 +1,9 @@
+{
+  "name": "selftest",
+  "version": "0.1.0",
+  "entry": "/ai/bin/selftest",
+  "lang": "python",
+  "tests": "/ai/apps/selftest/tests/run.sh",
+  "tests_pass": true,
+  "capabilities": []
+}

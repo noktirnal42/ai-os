@@ -45,16 +45,20 @@ The TUI has two modes, shown in its header:
 - **Chat:** type a question and press Enter. This makes one model request and
   does not expose tools to that request.
 - **Do:** press **F2**, describe a task, and press Enter. AI OS can use its
-  bounded tools to work under `/ai`; the task is limited to 32 tool calls and
-  15 minutes. Existing file, network, registry, and approval safeguards remain
+  bounded tools to work under `/ai`; the task is limited to 40 tool calls and
+  25 minutes. Existing file, network, registry, and approval safeguards remain
   active.
+
+Model responses stream into the console as they arrive (toggle with `/stream`),
+and a small animated companion shows progress while AI OS thinks or runs tools.
 
 The footer shows the active model and endpoint. While AI OS works, the status
 line displays elapsed model wait; the conversation log shows tool activity,
 command exit codes, completion, and errors. Model requests default to 300
 seconds, configurable through `AIOS_MODEL_TIMEOUT` from 10 to 600 seconds.
-`F1` opens help, **F2** switches modes, **Up/Down** scrolls, and **Ctrl-C** or
-**Esc** exits. Stopping a task terminates its process group.
+`F1` opens help, **F2** switches modes, **F3** picks a provider and model,
+**Up/Down** scrolls, and **Ctrl-C** or **Esc** exits. Stopping a task
+terminates its process group.
 
 Useful actions:
 
@@ -63,10 +67,22 @@ Useful actions:
 /chat                 return to Chat mode
 /do                   switch to Do mode
 /do build a small app  switch to Do and immediately start the task
+/model                open the provider and model picker (also F3)
+/providers            list known providers and whether their key is installed
+/stream               toggle streaming responses
 /quit                 exit the console
 ```
 
 Alternatively, from an already configured guest shell run `aios tui`.
+
+## Providers and keys
+
+Provider API keys live in the macOS Keychain. `emulation/sync-keys.sh` copies
+the OpenRouter, Ollama Cloud, and NVIDIA NIM keys into `/ai/secrets/` (0600)
+without printing them, and `emulation/sync-providers.sh` writes
+`/ai/state/providers.json`, the registry the F3 picker reads. A provider is
+listed as available only when its key file exists in the guest. The selected
+model is stored in `/ai/state/model.json` (no credentials).
 
 ## Important boundaries
 

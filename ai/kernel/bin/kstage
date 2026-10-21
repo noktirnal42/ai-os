@@ -1,0 +1,99 @@
+#!/bin/sh
+# Kernel-change staging: build a module in a sandbox directory, test it, request approval, then load.
+#   kstage build NAME       compile examples/source for NAME against the running kernel's headers, then run its test
+#   kstage request NAME     record a load request (module hash and vermagic) once the build and test pass
+#   kstage load NAME        load the requested module after a human answers y; refuses on any mismatch
+#   kstage unload NAME      unload it (logged)
+# Source lives in /ai/kernel/src/NAME (the example is copied there by setup). Nothing loads by itself.
+set -eu
+ROOT=/ai/kernel
+SRC="$ROOT/src"
+BUILD="$ROOT/build"
+REQ="$ROOT/requests"
+LOG=/ai/state/kernel.log
+KVER=$(uname -r)
+KDIR="/lib/modules/$KVER/build"
+
+need_name() {
+  case "${1:-}" in ''|*[!A-Za-z0-9_-]*) echo "kstage: module name must be letters, digits, dash, or underscore" >&2; exit 2 ;; esac
+}
+
+record() {
+  mkdir -p "$(dirname "$LOG")"
+  printf '{"t":"%s","ev":"kernel_%s","module":"%s","detail":"%s"}\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$1" "$2" "$3" >> "$LOG"
+}
+
+build() {
+  name="$1"
+  if [ ! -d "$KDIR" ]; then
+    echo "kstage: kernel headers for $KVER are not installed ($KDIR missing)." >&2
+    echo "        Modules cannot be built until a header package matching the running kernel is installed." >&2
+    exit 3
+  fi
+  [ -d "$SRC/$name" ] || { echo "kstage: no source for $name in $SRC" >&2; exit 1; }
+  work="$BUILD/$name"
+  rm -rf "$work"; mkdir -p "$work"
+  cp -R "$SRC/$name/." "$work/"
+  make -C "$KDIR" M="$work" modules >"$work/build.log" 2>&1 || { tail -20 "$work/build.log" >&2; record build_failed "$name" "make failed"; exit 1; }
+  ko="$work/$name.ko"
+  [ -f "$ko" ] || { echo "kstage: build produced no $name.ko" >&2; exit 1; }
+  if sh "$work/tests/run.sh" "$ko" >"$work/test.log" 2>&1; then
+    printf '{"built":true,"tests":"pass","ko":"%s"}\n' "$ko" > "$work/result.json"
+    record built "$name" "tests passed"
+    echo "built and tested $name against $KVER"
+  else
+    tail -10 "$work/test.log" >&2
+    record test_failed "$name" "acceptance test failed"
+    exit 1
+  fi
+}
+
+request() {
+  name="$1"
+  result="$BUILD/$name/result.json"
+  [ -f "$result" ] || { echo "kstage: $name has not passed its build and test; run kstage build $name" >&2; exit 1; }
+  ko="$BUILD/$name/$name.ko"
+  hash=$(sha256sum "$ko" | cut -d' ' -f1)
+  vermagic=$(modinfo -F vermagic "$ko" 2>/dev/null | cut -d' ' -f1)
+  [ "$vermagic" = "$KVER" ] || { echo "kstage: $name was built for $vermagic, running kernel is $KVER; refusing" >&2; exit 1; }
+  mkdir -p "$REQ"
+  printf '{"module":"%s","ko":"%s","sha256":"%s","vermagic":"%s"}\n' "$name" "$ko" "$hash" "$vermagic" > "$REQ/$name.json"
+  record requested "$name" "$hash"
+  echo "requested load of $name ($hash). A human runs: kstage load $name"
+}
+
+load() {
+  name="$1"
+  req="$REQ/$name.json"
+  [ -f "$req" ] || { echo "kstage: no load request for $name" >&2; exit 1; }
+  ko=$(sed -n 's/.*"ko":"\([^"]*\)".*/\1/p' "$req")
+  want=$(sed -n 's/.*"sha256":"\([^"]*\)".*/\1/p' "$req")
+  have=$(sha256sum "$ko" 2>/dev/null | cut -d' ' -f1)
+  [ -n "$have" ] && [ "$have" = "$want" ] || { echo "kstage: $name changed since it was requested; refusing" >&2; record refused "$name" "hash mismatch"; exit 1; }
+  printf 'Load kernel module %s (%s) into the running kernel? [y/N] ' "$name" "$want"
+  read -r answer || answer=""
+  case "$answer" in
+    y|Y|yes) ;;
+    *) record refused "$name" "declined"; echo "not loaded"; exit 1 ;;
+  esac
+  sudo insmod "$ko"
+  record loaded "$name" "$want"
+  echo "loaded $name"
+}
+
+unload() {
+  name="$1"
+  sudo rmmod "$name"
+  record unloaded "$name" "by user"
+  echo "unloaded $name"
+}
+
+[ $# -ge 2 ] || { echo "usage: kstage build|request|load|unload NAME" >&2; exit 2; }
+need_name "$2"
+case "$1" in
+  build) build "$2" ;;
+  request) request "$2" ;;
+  load) load "$2" ;;
+  unload) unload "$2" ;;
+  *) echo "usage: kstage build|request|load|unload NAME" >&2; exit 2 ;;
+esac

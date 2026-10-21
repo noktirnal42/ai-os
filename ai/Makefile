@@ -1,4 +1,4 @@
-.PHONY: selftest test calc-test fileutils-test jobs-test aed-test ask-test net-test eval sandbox-probes live-model-test live-self-build-test live-app-build-test net-probe
+.PHONY: selftest test calc-test fileutils-test jobs-test aed-test mail-test ask-test net-test tasks-test aipkg-test selftest-test eval sandbox-probes live-model-test live-self-build-test live-app-build-test net-probe
 
 selftest:
 	./selftest
@@ -18,11 +18,17 @@ jobs-test:
 aed-test:
 	./apps/aed/tests/run.sh
 
+mail-test:
+	./apps/mail/tests/run.sh
+
 ask-test:
 	./apps/ask/tests/run.sh
 
 net-test:
 	./apps/net/tests/run.sh
+
+tasks-test:
+	./apps/tasks/tests/run.sh
 
 eval:
 	./evals/run.sh --phase 1 --repeat 1
@@ -41,3 +47,9 @@ live-app-build-test:
 
 net-probe:
 	python3 evals/net-probe.py
+
+aipkg-test:
+	./apps/aipkg/tests/run.sh
+
+selftest-test:
+	./apps/selftest/tests/run.sh

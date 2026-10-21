@@ -1,0 +1,320 @@
+#!/usr/bin/env python3
+"""Chat window for the AI OS agent (GTK4). Chat mode only: one question, one answer, no tools.
+
+Each question runs `aios ask` in the background so the window stays responsive.
+Do mode (tools, approvals) stays in the terminal console (Alt+Shift+a).
+Logic (command building, transcript lines) is in plain functions so it can be tested
+without a display. GTK is imported only when the window runs.
+"""
+import os
+import subprocess
+import sys
+import threading
+
+AIOS = os.environ.get("AIOS_BIN", "/ai/bin/aios")
+TIMEOUT_SECONDS = int(os.environ.get("AIOS_CHAT_TIMEOUT", "330"))
+
+
+def ask_command(question):
+    """The argument list for one chat turn. No tools: this is the plain `aios ask` path."""
+    return [AIOS, "ask", question]
+
+
+def format_turn(question, answer, error):
+    lines = [f"you › {question}"]
+    if answer.strip():
+        lines.append(f"AI OS › {answer.strip()}")
+    if error.strip():
+        lines.append(f"error › {error.strip()}")
+    return "\n".join(lines)
+
+
+def do_command(goal):
+    """The argument list for one Do-mode run, bounded the same way as the terminal console."""
+    return [AIOS, "run", "--max-tools", "40", "--max-seconds", "1500", goal]
+
+
+def gate_reply(answer):
+    """Bytes to write to the harness for an approval: only y or yes approves; anything else declines."""
+    return b"y\n" if answer.strip().lower() in {"y", "yes"} else b"n\n"
+
+
+def event_status(event, step):
+    """Live status for the status line: one line that changes, so routine steps never fill the transcript."""
+    if event.get("ev") == "tool_call":
+        return f"working: using {event.get('tool', 'a tool')} (step {step})"
+    return ""
+
+
+def is_model_noise(text):
+    """Raw model output that is tool-call JSON or code fences, not something to show in the transcript."""
+    stripped = text.lstrip()
+    return stripped.startswith(("{", "[", "```", "}", "]")) or '"name":' in stripped
+
+
+def event_line(event):
+    """A transcript line for the events worth keeping: gate decisions, acceptance tests, and the verdict.
+    Routine tool steps go to the status line (event_status). Tool arguments are never echoed."""
+    kind = event.get("ev")
+    if kind == "registry_test":
+        return f"· acceptance tests for {event.get('app', 'an app')} exited {event.get('exit')}"
+    if kind == "gate":
+        return f"· you answered {event.get('human', '?')}"
+    if kind == "verdict":
+        return f"· task {event.get('kind', 'finished')}"
+    return ""
+
+
+def parse_event(raw):
+    """One audit line as a dict, or None when it is not a JSON object."""
+    import json
+    try:
+        event = json.loads(raw)
+    except (ValueError, UnicodeDecodeError):
+        return None
+    return event if isinstance(event, dict) else None
+
+
+def run_ask(question, timeout=TIMEOUT_SECONDS):
+    """Blocking call used from a worker thread. Returns (answer, error)."""
+    try:
+        done = subprocess.run(ask_command(question), capture_output=True, text=True, timeout=timeout)
+    except subprocess.TimeoutExpired:
+        return "", f"no reply within {timeout} seconds"
+    except OSError as exc:
+        return "", str(exc)
+    return done.stdout, done.stderr if done.returncode != 0 else ""
+
+
+def run_window():
+    import gi
+    gi.require_version("Gtk", "4.0")
+    from gi.repository import Gdk, GLib, Gtk
+
+    class Window(Gtk.ApplicationWindow):
+        def __init__(self, app):
+            super().__init__(application=app, title="AI OS chat")
+            self.set_default_size(820, 640)
+            self.busy = False
+
+            header = Gtk.HeaderBar()
+            self.do_toggle = Gtk.ToggleButton(label="Do mode")
+            self.do_toggle.set_tooltip_text("Let AI OS use tools. Approvals appear in this window.")
+            self.do_toggle.connect("toggled", self.on_mode_toggled)
+            header.pack_start(self.do_toggle)
+            self.stop_btn = Gtk.Button(label="Stop")
+            self.stop_btn.set_sensitive(False)
+            self.stop_btn.connect("clicked", self.on_stop)
+            header.pack_end(self.stop_btn)
+            self.set_titlebar(header)
+            self.proc = None
+            self.session_seen = set()
+
+            box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
+            box.set_margin_top(12); box.set_margin_bottom(12)
+            box.set_margin_start(12); box.set_margin_end(12)
+            self.set_child(box)
+
+            self.transcript = Gtk.TextView(editable=False, cursor_visible=False)
+            self.transcript.set_wrap_mode(Gtk.WrapMode.WORD_CHAR)
+            self.transcript.set_left_margin(8); self.transcript.set_right_margin(8)
+            self.buffer = self.transcript.get_buffer()
+            scroll = Gtk.ScrolledWindow(child=self.transcript)
+            scroll.set_vexpand(True)
+            self.scroll = scroll
+            box.append(scroll)
+
+            row = Gtk.Box(spacing=8)
+            self.entry = Gtk.Entry(placeholder_text="Ask AI OS a question (Chat mode)")
+            self.entry.set_hexpand(True)
+            self.entry.connect("activate", self.on_send)
+            self.send_btn = Gtk.Button(label="Send")
+            self.send_btn.connect("clicked", self.on_send)
+            row.append(self.entry); row.append(self.send_btn)
+            box.append(row)
+
+            self.approval = Gtk.Box(spacing=8)
+            self.approval_text = Gtk.Label(xalign=0, wrap=True, hexpand=True)
+            yes = Gtk.Button(label="Approve")
+            yes.connect("clicked", lambda *_: self.answer_gate("y"))
+            no = Gtk.Button(label="Decline")
+            no.connect("clicked", lambda *_: self.answer_gate("n"))
+            self.approval.append(self.approval_text)
+            self.approval.append(yes); self.approval.append(no)
+            self.approval.set_visible(False)
+            box.append(self.approval)
+
+            self.status = Gtk.Label(xalign=0)
+            box.append(self.status)
+            self.append_text("AI OS chat. Chat mode answers without using tools. "
+                             "For tasks that build or install things, open the terminal console (Alt+Shift+a).\n")
+            keys = Gtk.EventControllerKey()
+            keys.connect("key-pressed", self.on_key)
+            self.add_controller(keys)
+            self.entry.grab_focus()
+
+        def on_key(self, _controller, keyval, _keycode, state):
+            # Ctrl+D toggles Do mode, so the mode can be switched without the mouse.
+            if keyval in (Gdk.KEY_d, Gdk.KEY_D) and state & Gdk.ModifierType.CONTROL_MASK:
+                self.do_toggle.set_active(not self.do_toggle.get_active())
+                return True
+            return False
+
+        def append_text(self, text):
+            end = self.buffer.get_end_iter()
+            self.buffer.insert(end, text + "\n")
+            mark = self.buffer.create_mark(None, self.buffer.get_end_iter(), False)
+            self.transcript.scroll_to_mark(mark, 0.0, False, 0.0, 1.0)
+
+        def on_mode_toggled(self, button):
+            self.entry.set_placeholder_text(
+                "Give AI OS a task (Do mode)" if button.get_active() else "Ask AI OS a question (Chat mode)")
+
+        def on_stop(self, *_args):
+            if self.proc is not None and self.proc.poll() is None:
+                import signal
+                try:
+                    os.killpg(self.proc.pid, signal.SIGTERM)
+                except ProcessLookupError:
+                    pass
+                self.status.set_text("Stopping…")
+
+        def answer_gate(self, answer):
+            proc = self.proc
+            if proc is None or proc.stdin is None or proc.poll() is not None:
+                return
+            try:
+                proc.stdin.write(gate_reply(answer))
+                proc.stdin.flush()
+            except (BrokenPipeError, OSError, ValueError):
+                self.append_text("· could not send the answer; the task has stopped.")
+            self.approval.set_visible(False)
+            self.append_text(f"· you {'approved' if answer == 'y' else 'declined'}.")
+
+        def start_do(self, goal):
+            import glob
+            sessions = os.path.expanduser("/ai/state/sessions")
+            self.session_seen = set(glob.glob(os.path.join(sessions, "*.jsonl")))
+            self.busy = True
+            self.send_btn.set_sensitive(False)
+            self.stop_btn.set_sensitive(True)
+            self.status.set_text("AI OS is working…")
+            self.proc = subprocess.Popen(do_command(goal), stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+                                          stderr=subprocess.STDOUT, start_new_session=True,
+                                          env={**os.environ, "AIOS_STREAM": "0"})
+            threading.Thread(target=self.read_output, args=(self.proc,), daemon=True).start()
+            threading.Thread(target=self.tail_session, args=(self.proc, sessions), daemon=True).start()
+
+        def read_output(self, proc):
+            for raw in proc.stdout:
+                text = raw.decode(errors="replace").rstrip()
+                if text and not is_model_noise(text):
+                    GLib.idle_add(self.append_text, text)
+            code = proc.wait()
+            GLib.idle_add(self.do_finished, code)
+
+        def tail_session(self, proc, sessions):
+            import glob
+            import time
+            path = None
+            offset = 0
+            steps = 0
+            partial = b""
+            while proc.poll() is None or path is not None:
+                if path is None:
+                    created = [p for p in glob.glob(os.path.join(sessions, "*.jsonl")) if p not in self.session_seen]
+                    if created:
+                        path = max(created, key=os.path.getmtime)
+                if path is not None:
+                    try:
+                        with open(path, "rb") as handle:
+                            handle.seek(offset)
+                            data = handle.read()
+                            offset = handle.tell()
+                    except OSError:
+                        data = b""
+                    partial += data
+                    while b"\n" in partial:
+                        raw, partial = partial.split(b"\n", 1)
+                        event = parse_event(raw)
+                        if event is None:
+                            continue
+                        if event.get("ev") == "gate_request":
+                            GLib.idle_add(self.show_gate, event.get("question", "Approve?"))
+                        else:
+                            if event.get("ev") == "tool_call":
+                                steps += 1
+                            status = event_status(event, steps)
+                            if status:
+                                GLib.idle_add(self.set_status, status)
+                            line = event_line(event)
+                            if line:
+                                GLib.idle_add(self.append_text, line)
+                    if proc.poll() is not None and not data:
+                        break
+                time.sleep(0.2)
+
+        def set_status(self, text):
+            self.status.set_text(text)
+            return False
+
+        def show_gate(self, question):
+            self.approval_text.set_text("AI OS asks: " + question)
+            self.approval.set_visible(True)
+            return False
+
+        def do_finished(self, code):
+            self.busy = False
+            self.proc = None
+            self.send_btn.set_sensitive(True)
+            self.stop_btn.set_sensitive(False)
+            self.approval.set_visible(False)
+            self.status.set_text("")
+            self.append_text(f"· task ended (exit {code}). Results are above; check them before you rely on them.")
+            return False
+
+        def on_send(self, *_args):
+            question = self.entry.get_text().strip()
+            if not question or self.busy:
+                return
+            if self.do_toggle.get_active():
+                self.entry.set_text("")
+                self.append_text(f"you [do] › {question}")
+                self.start_do(question)
+                return
+            self.entry.set_text("")
+            self.busy = True
+            self.send_btn.set_sensitive(False)
+            self.status.set_text("AI OS is thinking…")
+
+            def worker():
+                answer, error = run_ask(question)
+                GLib.idle_add(self.finish, question, answer, error)
+
+            threading.Thread(target=worker, daemon=True).start()
+
+        def finish(self, question, answer, error):
+            self.append_text(format_turn(question, answer, error))
+            self.busy = False
+            self.send_btn.set_sensitive(True)
+            self.status.set_text("")
+            self.entry.grab_focus()
+            return False
+
+    class App(Gtk.Application):
+        def __init__(self):
+            super().__init__(application_id="os.aios.chat")
+
+        def do_activate(self):
+            Window(self).present()
+
+    return App().run([])
+
+
+if __name__ == "__main__":
+    if "--text" in sys.argv:
+        question = " ".join(a for a in sys.argv[1:] if a != "--text")
+        answer, error = run_ask(question)
+        print(format_turn(question, answer, error))
+    else:
+        sys.exit(run_window() or 0)

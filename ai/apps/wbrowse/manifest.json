@@ -1,0 +1,9 @@
+{
+  "name": "wbrowse",
+  "version": "0.1.0",
+  "entry": "/ai/bin/wbrowse",
+  "tests": "/ai/apps/wbrowse/tests/run.sh",
+  "lang": "python",
+  "tests_pass": true,
+  "capabilities": ["network:allowlist"]
+}

@@ -1,0 +1,7 @@
+{
+  "name": "notes",
+  "version": "0.1.0",
+  "entry": "/ai/bin/notes",
+  "tests": "/ai/apps/notes/tests/run.sh",
+  "capabilities": ["fs:/ai/state"]
+}

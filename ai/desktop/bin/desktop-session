@@ -1,0 +1,8 @@
+#!/bin/sh
+# Start the AI OS desktop on the console (tty1). Run from the ai user's profile after autologin.
+# The compositor takes over the virtual display; the terminal inside it is the first thing the user sees.
+set -eu
+RT="/tmp/xdg-$(id -u)"
+mkdir -p "$RT"; chmod 700 "$RT"
+export XDG_RUNTIME_DIR="$RT" WLR_RENDERER=pixman LIBSEAT_BACKEND=seatd
+exec sway -c /ai/desktop/sway-screen.conf
