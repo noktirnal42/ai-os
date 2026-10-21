@@ -152,6 +152,13 @@ Each phase has a gate and a rollback, following the v1 bootstrap roadmap (`docs/
   - Agent: Alt+a opens a chat window in Chat mode. Ctrl+D (or the header toggle) switches to Do mode, where approvals appear in the window. Verified on screen: a request showed its full question, and Decline was recorded in the audit log.
   - Alt+Shift+a opens the terminal console (Do mode with the full console).
 - **Phase 2 (desktop shell), done:** an app menu on Alt+Space, window keys (focus, move, fullscreen, floating, splits), workspaces 1 to 4, and a top bar with the model, free memory, and time.
-- **Not yet:** the freedom model in section 5 (a policy file, staged kernel changes, checkpoints and rollback, and the activity window), and the release image in phase 5.
+- **Freedom model (section 5), first slices done:**
+  - Policy file `/ai/policy.json` (`docs/19`): narrow-only write roots, fail closed, logged per session.
+  - Activity window (Alt+g) over the audit logs, with the write roots in force.
+  - Desktop checkpoints (`checkpoint create|list|rollback`): a rollback saves the current state first and leaves mail, notes, sessions, and secrets alone.
+  - Staged kernel modules (`kstage`): build and test against the running kernel, request, then load only after a human yes. Verified end to end with an example module, which loaded and unloaded on the VM.
+- **Guest kernel:** upgraded to 6.12.113 after regenerating the initramfs (`docs/13`). The earlier failed boot was a stale initramfs.
+- **Desktop boot:** tty1 autologs in and starts the desktop, so the VM window opens on the desktop. Terminal font is 16pt.
+- **Not yet:** the release image in phase 5 (reproducible build, checksum, and a clean snapshot); the policy does not yet gate kernel loads; the notes tutorial install still needs a human run.
 - **Known gaps:** keyboard and mouse presses in the macOS window are not yet confirmed; the chat window's Do-mode has not been run through a full approve path on screen (only decline has been); `mailview` and the CLI mail view are kept as fallbacks.
 
