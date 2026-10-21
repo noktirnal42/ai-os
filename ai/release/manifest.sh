@@ -8,6 +8,7 @@ mkdir -p "$(dirname "$OUT")"
 {
   echo "{"
   echo "  \"kernel\": \"$(uname -r)\","
+  echo "  \"installed_kernel\": \"$(ls /lib/modules | sort -V | tail -1)\","
   echo "  \"alpine\": \"$(cat /etc/alpine-release)\","
   echo "  \"packages\": ["
   apk info -v 2>/dev/null | sort | sed 's/.*/    "&",/' | sed '$ s/,$//'

@@ -71,3 +71,28 @@ check again.
 The fresh VM is stopped. Its overlay files (`aios-fresh.qcow2`, `seed-fresh.iso`) remain in
 `emulation/artifacts`; deleting them is a destructive step and needs your approval.
 
+## Re-run with provision.sh (2026-10-20, second fresh VM)
+
+`ai/release/provision.sh` was written and run in a new VM overlay (`aios-fresh2`, SSH 2224) from the base
+image. The repo's `ai/` tree was packed on the host, pushed to `/ai/source`, and the script ran to
+`PROVISION_DONE`, exit 0. It upgraded the kernel and regenerated the initramfs, installed the harness,
+apps, and desktop, and wrote a manifest (`manifest-fresh2.json`).
+
+What the comparison still shows, and why:
+
+- **Kernel:** the manifest's `kernel` is the running kernel (6.12.110, because the new VM was not rebooted
+  after the upgrade). The installed kernel is 6.12.113. Reboot after provisioning to match the release.
+- **Extra files:** `._*` entries came from packing the tree on macOS. Pack with `COPYFILE_DISABLE=1 tar`.
+- **Missing files:** the release VM holds v1 build-evaluation output in `/ai/apps` that the repo does not
+  contain. Clean those before a real release, or exclude them from the manifest.
+- **Changed files:** the release VM has older copies of some app manifests and `setup.sh`. The manifest
+  caught this, which is its job.
+- **Packages:** 33 release-only and 6 fresh-only, mostly from the kernel-build dependencies and a
+  different crypto point release in the base image.
+
+Net: the one-script provisioning path works end to end. The release VM is not yet a byte-for-byte rebuild
+of it, for the reasons above. The next step is to fix the packing and manifest details, reboot after
+provisioning, and then rebuild the release VM from the script instead of by hand.
+
+The second fresh VM is stopped; its overlay and seed remain in `emulation/artifacts`.
+
