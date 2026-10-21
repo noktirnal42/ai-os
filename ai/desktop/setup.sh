@@ -34,3 +34,12 @@ fi
 # running kernel; this script does not install it, because a mismatched header package cannot build.
 sudo install -m 755 /ai/kernel/bin/kstage /ai/bin/kstage 2>/dev/null || true
 
+# Boot straight into the desktop: autologin on tty1 for the ai user, and start the session from the
+# profile. The profile line is added once, guarded by a marker.
+if ! grep -q '^tty1::respawn:/bin/login -f ai' /etc/inittab 2>/dev/null; then
+  sudo sed -i 's#^tty1::respawn:/sbin/getty 38400 tty1#tty1::respawn:/bin/login -f ai#' /etc/inittab
+fi
+if ! grep -q 'AI OS desktop autostart' "$HOME/.profile" 2>/dev/null; then
+  printf '%s\n' '# AI OS desktop autostart' 'if [ "$(tty)" = /dev/tty1 ] && [ -z "${WAYLAND_DISPLAY:-}" ]; then exec /ai/bin/desktop-session; fi' >> "$HOME/.profile"
+fi
+

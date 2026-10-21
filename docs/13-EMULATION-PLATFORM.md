@@ -276,3 +276,12 @@ Acceptance evidence and remaining limits are recorded in
   investigated further.
 - **VM definition:** unchanged in `emulation/vm.sh` and `vm.conf`.
 
+### 2026-10-20 — autologin to the desktop on the console (guest configuration)
+
+- **What changed in the guest:** `/etc/inittab` runs `/bin/login -f ai` on tty1 instead of a login
+  prompt, and the ai user's profile starts `/ai/bin/desktop-session` (sway) on tty1. The serial console
+  keeps its login prompt. No change to `emulation/vm.sh` or `vm.sh`'s VM definition.
+- **Why:** after a reboot the QEMU window showed a small login prompt. The desktop now appears on boot.
+- **Verified:** after a restart, sway runs on tty1 and the welcome terminal is on screen.
+- **Note:** `ai/desktop/setup.sh` makes this change; a fresh guest needs the setup script run once.
+
